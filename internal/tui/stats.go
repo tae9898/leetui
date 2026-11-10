@@ -18,11 +18,11 @@ type statsModel struct {
 func newStats(a *App) *statsModel { return &statsModel{a: a} }
 
 type typeStat struct {
-	typ        string
-	tries      int
-	fails      int
-	totalMin   int
-	avgMin     int
+	typ      string
+	tries    int
+	fails    int
+	totalMin int
+	avgMin   int
 }
 
 func (sm *statsModel) byType() []typeStat {

@@ -31,8 +31,6 @@ type runModel struct {
 	cancel context.CancelFunc
 	vp     viewport.Model
 	vpOK   bool
-
-	fastElapsed string
 }
 
 func newRun(a *App) *runModel {
@@ -49,7 +47,6 @@ func (rm *runModel) start(p problem.Problem, fast bool) {
 	rm.cur = 0
 	rm.cursor = 0
 	rm.tab = 0
-	rm.fastElapsed = ""
 	rm.ctx, rm.cancel = context.WithCancel(context.Background())
 	rm.vp = viewport.New(0, 0)
 	rm.vpOK = false
@@ -244,7 +241,7 @@ func (rm *runModel) detailContent() string {
 		if r.Status == runner.NoExp {
 			return b.String() + stWarn.Render("기대출력(.out) 없음 — 판정 제외")
 		}
-		if linediff.WhitespaceOnly(r.Expected, r.Actual) {
+		if r.Status == runner.Fail && linediff.WhitespaceOnly(r.Expected, r.Actual) {
 			b.WriteString(stWarn.Render("공백만 다름 (줄 끝 공백/CR)"))
 			b.WriteByte('\n')
 		}

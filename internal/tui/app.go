@@ -29,7 +29,7 @@ const (
 )
 
 type App struct {
-	cfg          config.Config
+	cfg           config.Config
 	width, height int
 
 	entries  []pslog.Entry
@@ -156,7 +156,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, tea.Batch(a.open(scrWorkbench), a.bench.reload(m.Prob))
 	case openRunMsg:
 		a.runM.start(m.Prob, m.Fast)
-		return a, a.open(scrRun)
+		return a, tea.Batch(a.open(scrRun), a.runM.compileCmd())
 	case openDoneMsg:
 		a.doneM.start(m.Prob, m.Default)
 		return a, a.open(scrDone)

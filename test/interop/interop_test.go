@@ -65,8 +65,8 @@ func makeRoot(t *testing.T) string {
 
 func today() string { return time.Now().Format("2006-01-02") }
 
-// 1. Go New → fish psrun(빈 템플릿+빈 1.in/1.out = PASS) → fish psdone fail
-//    → Go가 그 행을 3일 뒤 due로 읽는다.
+//  1. Go New → fish psrun(빈 템플릿+빈 1.in/1.out = PASS) → fish psdone fail
+//     → Go가 그 행을 3일 뒤 due로 읽는다.
 func TestGoNewFishRunFishDoneGoDue(t *testing.T) {
 	fishOK(t)
 	root := makeRoot(t)

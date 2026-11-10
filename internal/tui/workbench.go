@@ -17,7 +17,7 @@ import (
 type FileEntry struct {
 	Name string
 	Size int64
-	Kind int // 0 main, 1 in, 2 out, 3 backup
+	Kind int    // 0 main, 1 in, 2 out, 3 backup
 	Case string // in/out 쌍의 케이스 번호 문자열
 }
 

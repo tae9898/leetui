@@ -24,12 +24,12 @@ type problemsModel struct {
 func newProblems(a *App) *problemsModel { return &problemsModel{a: a} }
 
 type probRow struct {
-	prob      *problem.Problem
+	prob       *problem.Problem
 	site, name string
-	last      *pslog.Entry
-	ghost     bool // 로그에만 있고 디렉터리 없음
+	last       *pslog.Entry
+	ghost      bool // 로그에만 있고 디렉터리 없음
 	inProgress bool
-	typ       string
+	typ        string
 }
 
 func (pm *problemsModel) rows() []probRow {

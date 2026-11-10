@@ -14,15 +14,15 @@ import (
 )
 
 type doneModel struct {
-	a     *App
-	prob  problem.Problem
-	results []string // {"ok","fail","again"}
-	cur   int
-	memo  textinput.Model
-	mins  textinput.Model
+	a        *App
+	prob     problem.Problem
+	results  []string // {"ok","fail","again"}
+	cur      int
+	memo     textinput.Model
+	mins     textinput.Model
 	minsAuto bool
-	field int // 0 결과, 1 메모, 2 소요분
-	err   string
+	field    int // 0 결과, 1 메모, 2 소요분
+	err      string
 }
 
 func newDone(a *App) *doneModel {
@@ -60,12 +60,12 @@ func (d *doneModel) result() pslog.Result { return pslog.Result(d.results[d.cur]
 
 func (d *doneModel) entry() (pslog.Entry, error) {
 	e := pslog.Entry{
-		Date:   time.Now().Format("2006-01-02"),
-		Site:   d.prob.Site,
+		Date:    time.Now().Format("2006-01-02"),
+		Site:    d.prob.Site,
 		Problem: d.prob.Name,
-		Result: d.result(),
-		Due:    pslog.DueDate(d.result(), time.Now()),
-		Note:   d.memo.Value(),
+		Result:  d.result(),
+		Due:     pslog.DueDate(d.result(), time.Now()),
+		Note:    d.memo.Value(),
 	}
 	mins := 0
 	if v := strings.TrimSpace(d.mins.Value()); v != "" {

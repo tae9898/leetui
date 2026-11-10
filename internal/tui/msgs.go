@@ -15,8 +15,8 @@ type openRunMsg struct {
 	Fast bool // F 키: fast 빌드 후 시간 측정만
 }
 type openDoneMsg struct {
-	Prob     problem.Problem
-	Default  string // "ok" | "fail" — Run 결과 기본값
+	Prob    problem.Problem
+	Default string // "ok" | "fail" — Run 결과 기본값
 }
 type openNewMsg struct{}
 type newCreatedMsg struct {
@@ -33,9 +33,9 @@ type editorDoneMsg struct {
 
 // 데이터 로드 (도메인 호출은 전부 tea.Cmd 안에서)
 type logLoadedMsg struct {
-	Entries  []pslog.Entry
-	Skipped  int
-	Err      error
+	Entries []pslog.Entry
+	Skipped int
+	Err     error
 }
 type problemsLoadedMsg struct {
 	Problems []problem.Problem
