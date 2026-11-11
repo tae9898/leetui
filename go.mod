@@ -1,4 +1,4 @@
-module pstui
+module leetui
 
 go 1.22
 

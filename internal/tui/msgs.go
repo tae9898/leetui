@@ -1,9 +1,9 @@
 package tui
 
 import (
-	"pstui/internal/ps/problem"
-	"pstui/internal/ps/pslog"
-	"pstui/internal/ps/runner"
+	"leetui/internal/ps/problem"
+	"leetui/internal/ps/pslog"
+	"leetui/internal/ps/runner"
 )
 
 // 화면 전환

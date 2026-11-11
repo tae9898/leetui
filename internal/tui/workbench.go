@@ -12,7 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"pstui/internal/ps/problem"
+	"leetui/internal/ps/problem"
 )
 
 type FileEntry struct {

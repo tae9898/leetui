@@ -1,4 +1,4 @@
-# pstui
+# leetui
 
 `~/ps` 연습 환경(plan.md 8절, fish `ps*` 함수)을 대체하는 TUI. 
 `log.tsv` 포맷과 문제 디렉터리 규약은 기존 fish 환경과 100% 호환되어 둘을 번갈아 쓸 수 있다.
@@ -7,7 +7,7 @@
 ## 설치
 
 ```sh
-make install   # ~/go/bin/pstui
+make install   # ~/go/bin/leetui
 ```
 
 fish에서 PATH 등록: `fish_add_path ~/go/bin`
@@ -15,8 +15,8 @@ fish에서 PATH 등록: `fish_add_path ~/go/bin`
 ## 실행
 
 ```sh
-pstui              # TUI ($PS_ROOT 또는 ~/ps)
-pstui --root ~/ps  # 루트 명시
+leetui              # TUI ($PS_ROOT 또는 ~/ps)
+leetui --root ~/ps  # 루트 명시
 ```
 
 의존: `g++`(빌드/테스트), `$EDITOR`(기본 nvim). fish/awk/diff는 쓰지 않는다.

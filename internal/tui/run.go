@@ -10,9 +10,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"pstui/internal/ps/linediff"
-	"pstui/internal/ps/problem"
-	"pstui/internal/ps/runner"
+	"leetui/internal/ps/linediff"
+	"leetui/internal/ps/problem"
+	"leetui/internal/ps/runner"
 )
 
 type runModel struct {

@@ -8,9 +8,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"pstui/internal/ps/config"
-	"pstui/internal/ps/problem"
-	"pstui/internal/ps/pslog"
+	"leetui/internal/ps/config"
+	"leetui/internal/ps/problem"
+	"leetui/internal/ps/pslog"
 )
 
 type screen int
@@ -260,7 +260,7 @@ var screenNames = map[screen]string{
 }
 
 func (a *App) frame(body string) string {
-	left := stAccent.Render("pstui") + stDim.Render(" · "+screenNames[a.cur])
+	left := stAccent.Render("leetui") + stDim.Render(" · "+screenNames[a.cur])
 	right := stDim.Render(a.cfg.Root + " · " + time.Now().Format("2006-01-02 15:04"))
 	head := header(left, right, a.width)
 	body = fitLines(body, a.height-2)

@@ -1,3 +1,4 @@
-pstui
+/leetui
 *.test
 fast
+.omc/

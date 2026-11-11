@@ -12,8 +12,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"pstui/internal/ps/lcref"
-	"pstui/internal/ps/problem"
+	"leetui/internal/ps/lcref"
+	"leetui/internal/ps/problem"
 )
 
 // newModel: 새 문제 폼. 첫 필드에 URL이나 "56. Merge Intervals"를 붙여넣으면

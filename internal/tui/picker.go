@@ -7,8 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"pstui/internal/ps/plan"
-	"pstui/internal/ps/problem"
+	"leetui/internal/ps/plan"
+	"leetui/internal/ps/problem"
 )
 
 // pickerModel: plan.md 5절의 문제 목록에서 골라 바로 시작한다.

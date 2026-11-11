@@ -12,8 +12,8 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"pstui/internal/ps/lcref"
-	"pstui/internal/ps/problem"
+	"leetui/internal/ps/lcref"
+	"leetui/internal/ps/problem"
 )
 
 // stmtModel: 지문 뷰어. LeetCode는 GraphQL로 지문을 가져오고 문제 디렉터리에 캐시한다.

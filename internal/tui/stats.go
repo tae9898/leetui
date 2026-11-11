@@ -7,7 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"pstui/internal/ps/problem"
+	"leetui/internal/ps/problem"
 )
 
 // statsModel: 유형별(헤더 "// 유형:") 통계 + 주차별 푼 수 (TUI-PLAN 3.2 Stats).
