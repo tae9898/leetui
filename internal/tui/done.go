@@ -57,6 +57,19 @@ func (d *doneModel) start(p problem.Problem, def string) {
 	} else {
 		d.minsAuto = false
 	}
+	d.focusActive()
+}
+
+// focusActive는 메모/소요분 필드만 포커스한다 (결과 라디오는 키 직접 처리).
+func (d *doneModel) focusActive() {
+	d.memo.Blur()
+	d.mins.Blur()
+	if d.field == 1 {
+		d.memo.Focus()
+	}
+	if d.field == 2 {
+		d.mins.Focus()
+	}
 }
 
 func (d *doneModel) result() pslog.Result { return pslog.Result(d.results[d.cur]) }
@@ -89,10 +102,12 @@ func (d *doneModel) update(msg tea.Msg) tea.Cmd {
 		case "up", "k":
 			if d.field > 0 {
 				d.field--
+				d.focusActive()
 			}
 		case "down", "j", "tab":
 			if d.field < 2 {
 				d.field++
+				d.focusActive()
 			}
 		case "left", "h":
 			if d.field == 0 && d.cur > 0 {
@@ -112,7 +127,7 @@ func (d *doneModel) update(msg tea.Msg) tea.Cmd {
 			}
 			if d.field == 0 {
 				d.field = 1
-				d.memo.Focus()
+				d.focusActive()
 				return nil
 			}
 			return d.save()
@@ -228,7 +243,7 @@ func fieldRow(active bool, label, value string) string {
 
 func (d *doneModel) helpText() string {
 	return keyBar(
-		[2]string{"←/→", "결과"}, [2]string{"↑↓", "필드"}, [2]string{"1~3", "결과 선택"},
+		[2]string{"h/l", "결과"}, [2]string{"j/k", "필드"}, [2]string{"1~3", "결과 선택"},
 		[2]string{"⏎", "저장"}, [2]string{"esc", "취소"},
 	)
 }

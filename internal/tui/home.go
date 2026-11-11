@@ -160,7 +160,7 @@ func (h *homeModel) weekLine() string {
 
 func (h *homeModel) helpText() string {
 	return keyBar(
-		[2]string{"↑↓", "이동"}, [2]string{"⏎", "열기"}, [2]string{"t", "재도전"},
+		[2]string{"j/k", "이동"}, [2]string{"⏎", "열기"}, [2]string{"t", "재도전"},
 		[2]string{"n", "새 문제"}, [2]string{"p", "문제"}, [2]string{"l", "로그"},
 		[2]string{"s", "통계"}, [2]string{"r", "새로고침"}, [2]string{"q", "종료"},
 	)

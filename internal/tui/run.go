@@ -140,8 +140,11 @@ func (rm *runModel) update(msg tea.Msg) tea.Cmd {
 			rm.finishSummary()
 			p := rm.prob
 			return func() tea.Msg { return openWorkbenchMsg{Prob: p} }
-		case "tab":
+		case "tab", "l":
 			rm.tab = (rm.tab + 1) % 3
+			rm.refreshDiff()
+		case "h":
+			rm.tab = (rm.tab + 2) % 3
 			rm.refreshDiff()
 		case "d":
 			if rm.phase == 3 {
@@ -374,7 +377,7 @@ func (rm *runModel) helpText() string {
 		esc = "취소"
 	}
 	return keyBar(
-		[2]string{"↑↓", "케이스"}, [2]string{"Tab", "diff/stderr/로그"},
+		[2]string{"j/k", "케이스"}, [2]string{"h/l", "diff/stderr/로그"},
 		[2]string{"d", "결과 기록"}, [2]string{"esc", esc},
 	)
 }

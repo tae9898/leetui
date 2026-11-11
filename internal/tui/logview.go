@@ -81,6 +81,12 @@ func (lm *logModel) update(msg tea.Msg) tea.Cmd {
 				lm.filter = m.String()[0]
 			}
 			lm.cursor = 0
+		case "l":
+			lm.filter = nextFilter(lm.filter)
+			lm.cursor = 0
+		case "h":
+			lm.filter = prevFilter(lm.filter)
+			lm.cursor = 0
 		case "up", "k":
 			if lm.cursor > 0 {
 				lm.cursor--
@@ -142,7 +148,7 @@ func (lm *logModel) view() string {
 
 func (lm *logModel) helpText() string {
 	return keyBar(
-		[2]string{"↑↓", "이동"}, [2]string{"o/f/a", "결과 필터"},
+		[2]string{"j/k", "이동"}, [2]string{"h/l", "결과 필터"},
 		[2]string{"/", "검색"}, [2]string{"esc", "홈"},
 	)
 }
@@ -177,4 +183,31 @@ func (lm *logModel) rowsText(rows []int, innerW int) string {
 		b.WriteString(stDim.Render(" 기록 없음"))
 	}
 	return b.String()
+}
+
+// 결과 필터 순환: 없음 → ok → fail → again → 없음
+func nextFilter(cur byte) byte {
+	switch cur {
+	case 0:
+		return 'o'
+	case 'o':
+		return 'f'
+	case 'f':
+		return 'a'
+	default:
+		return 0
+	}
+}
+
+func prevFilter(cur byte) byte {
+	switch cur {
+	case 0:
+		return 'a'
+	case 'a':
+		return 'f'
+	case 'f':
+		return 'o'
+	default:
+		return 0
+	}
 }

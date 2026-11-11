@@ -351,7 +351,7 @@ func (w *workbenchModel) historyText(innerW int) string {
 
 func (w *workbenchModel) helpText() string {
 	return keyBar(
-		[2]string{"e", "편집"}, [2]string{"r", "실행"}, [2]string{"F", "fast빌드"},
+		[2]string{"j/k", "파일"}, [2]string{"e", "편집"}, [2]string{"r", "실행"}, [2]string{"F", "fast빌드"},
 		[2]string{"d", "기록"}, [2]string{"t", "재도전"}, [2]string{"a", "케이스"},
 		[2]string{"o", ".out 편집"}, [2]string{"esc", "홈"},
 	)

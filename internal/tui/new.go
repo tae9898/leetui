@@ -29,15 +29,15 @@ func newNew(a *App) *newModel {
 	n := &newModel{a: a}
 	n.site = textinput.New()
 	n.site.Prompt = ""
-	n.site.Placeholder = "lc"
+	n.site.Placeholder = "lc (엔터로 다음)"
 	n.site.CharLimit = 20
 	n.id = textinput.New()
 	n.id.Prompt = ""
-	n.id.Placeholder = "0056"
+	n.id.Placeholder = "0056 (엔터로 다음)"
 	n.id.CharLimit = 12
 	n.name = textinput.New()
 	n.name.Prompt = ""
-	n.name.Placeholder = "merge-intervals"
+	n.name.Placeholder = "merge-intervals (엔터로 생성)"
 	n.name.CharLimit = 60
 	return n
 }
@@ -49,6 +49,22 @@ func (n *newModel) reset() {
 	n.field = 0
 	n.err = ""
 	n.exists = false
+	n.focusActive()
+}
+
+// focusActive는 현재 필드만 포커스한다 (포커스 없는 textinput은 입력을 무시한다).
+func (n *newModel) focusActive() {
+	n.site.Blur()
+	n.id.Blur()
+	n.name.Blur()
+	switch n.field {
+	case 0:
+		n.site.Focus()
+	case 1:
+		n.id.Focus()
+	case 2:
+		n.name.Focus()
+	}
 }
 
 func (n *newModel) knownSites() []string {
@@ -81,11 +97,18 @@ func (n *newModel) update(msg tea.Msg) tea.Cmd {
 		switch m.String() {
 		case "tab":
 			n.field = (n.field + 1) % 3
+			n.focusActive()
 			return nil
 		case "shift+tab":
 			n.field = (n.field + 2) % 3
+			n.focusActive()
 			return nil
 		case "enter":
+			if n.field < 2 {
+				n.field++
+				n.focusActive()
+				return nil
+			}
 			return n.submit()
 		case "esc":
 			return func() tea.Msg { return openHomeMsg{} }
@@ -152,6 +175,9 @@ func (n *newModel) view() string {
 	lines = append(lines, fieldRow(n.field == 1, "번호", n.id.View()))
 	lines = append(lines, fieldRow(n.field == 2, "이름", n.name.View()))
 	lines = append(lines, "")
+	if !n.exists {
+		lines = append(lines, stDim.Render("세 필드를 입력하고 마지막에 ⏎ — 편집기까지 열립니다"))
+	}
 	preview := n.dirPath()
 	if n.site.Value() == "" || n.id.Value() == "" || n.name.Value() == "" {
 		preview = "…"
@@ -178,6 +204,6 @@ func (n *newModel) view() string {
 
 func (n *newModel) helpText() string {
 	return keyBar(
-		[2]string{"tab", "필드 이동"}, [2]string{"⏎", "생성 후 편집기"}, [2]string{"esc", "취소"},
+		[2]string{"⏎", "다음 필드/생성"}, [2]string{"tab", "필드 이동"}, [2]string{"esc", "취소"},
 	)
 }

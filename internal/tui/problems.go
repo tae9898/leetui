@@ -141,7 +141,7 @@ func (pm *problemsModel) update(msg tea.Msg) tea.Cmd {
 			pm.searching, pm.search = true, ""
 		case "d":
 			pm.dueOnly = !pm.dueOnly
-		case "tab":
+		case "tab", "l":
 			ss := pm.sites()
 			for i, s := range ss {
 				if s == pm.filterSite {
@@ -151,6 +151,20 @@ func (pm *problemsModel) update(msg tea.Msg) tea.Cmd {
 			}
 			if len(ss) > 0 {
 				pm.filterSite = ss[0]
+			}
+		case "h":
+			ss := pm.sites()
+			if pm.filterSite == "" {
+				if len(ss) > 0 {
+					pm.filterSite = ss[len(ss)-1]
+				}
+			} else {
+				for i, s := range ss {
+					if s == pm.filterSite {
+						pm.filterSite = ss[(i+len(ss)-1)%len(ss)]
+						return nil
+					}
+				}
 			}
 		case "up", "k":
 			if pm.cursor > 0 {
@@ -258,8 +272,8 @@ func (pm *problemsModel) rowsText(rows []probRow, innerW int) string {
 
 func (pm *problemsModel) helpText() string {
 	return keyBar(
-		[2]string{"↑↓", "이동"}, [2]string{"⏎", "작업 열기"}, [2]string{"/", "검색"},
-		[2]string{"tab", "사이트"}, [2]string{"d", "due만"}, [2]string{"n", "새 문제"},
+		[2]string{"j/k", "이동"}, [2]string{"⏎", "작업 열기"}, [2]string{"/", "검색"},
+		[2]string{"h/l", "사이트"}, [2]string{"d", "due만"}, [2]string{"n", "새 문제"},
 		[2]string{"esc", "홈"},
 	)
 }
