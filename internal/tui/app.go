@@ -26,6 +26,7 @@ const (
 	scrLog
 	scrStats
 	scrPlan
+	scrStmt
 )
 
 type App struct {
@@ -50,6 +51,7 @@ type App struct {
 	logM   *logModel
 	statsM *statsModel
 	pickM  *pickerModel
+	stmtM  *stmtModel
 
 	showHelp bool
 }
@@ -73,6 +75,7 @@ func newApp(cfg config.Config) *App {
 	a.logM = newLog(a)
 	a.statsM = newStats(a)
 	a.pickM = newPicker(a)
+	a.stmtM = newStmt(a)
 	return a
 }
 
@@ -164,6 +167,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.open(scrDone)
 	case openPlanMsg:
 		return a, a.open(scrPlan)
+	case openStmtMsg:
+		cmd := a.stmtM.open(m.Prob, m.Site, m.Slug)
+		return a, tea.Batch(a.open(scrStmt), cmd)
 	case openNewMsg:
 		a.newM.reset()
 		return a, a.open(scrNew)
@@ -205,6 +211,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = a.statsM.update(msg)
 	case scrPlan:
 		cmd = a.pickM.update(msg)
+	case scrStmt:
+		cmd = a.stmtM.update(msg)
 	}
 	return a, cmd
 }
@@ -235,6 +243,8 @@ func (a *App) View() string {
 		body = a.statsM.view()
 	case scrPlan:
 		body = a.pickM.view()
+	case scrStmt:
+		body = a.stmtM.view()
 	}
 	if a.showHelp {
 		body = helpCard(a.helpText(), a.width, a.height-2)
@@ -246,6 +256,7 @@ var screenNames = map[screen]string{
 	scrHome: "홈", scrProblems: "문제", scrWorkbench: "작업", scrRun: "실행",
 	scrDone: "기록", scrNew: "새 문제", scrRetry: "재도전", scrLog: "로그", scrStats: "통계",
 	scrPlan: "플랜",
+	scrStmt: "지문",
 }
 
 func (a *App) frame(body string) string {
@@ -324,6 +335,8 @@ func (a *App) helpText() string {
 		return a.statsM.helpText()
 	case scrPlan:
 		return a.pickM.helpText()
+	case scrStmt:
+		return a.stmtM.helpText()
 	}
 	return ""
 }

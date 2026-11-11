@@ -127,6 +127,13 @@ func (pm *pickerModel) update(msg tea.Msg) tea.Cmd {
 			pm.searching, pm.search = true, ""
 		case "m":
 			return func() tea.Msg { return openNewMsg{} }
+		case "v":
+			if pm.cursor < len(items) {
+				it := items[pm.cursor]
+				p := problem.Problem{Site: it.Site, Name: it.ID + "-" + it.Name,
+					Dir: pm.a.cfg.Root + "/" + it.Site + "/" + it.ID + "-" + it.Name}
+				return func() tea.Msg { return openStmtMsg{Prob: p, Site: it.Site, Slug: it.Name} }
+			}
 		case "enter":
 			if pm.cursor < len(items) {
 				return pm.start(items[pm.cursor])
@@ -264,6 +271,6 @@ func (pm *pickerModel) rowsText(items []plan.Item, innerW int) string {
 func (pm *pickerModel) helpText() string {
 	return keyBar(
 		[2]string{"j/k", "이동"}, [2]string{"h/l", "주차"}, [2]string{"u", "미풀만"},
-		[2]string{"/", "검색"}, [2]string{"⏎", "시작"}, [2]string{"m", "수동 입력"}, [2]string{"esc", "홈"},
+		[2]string{"/", "검색"}, [2]string{"v", "지문"}, [2]string{"⏎", "시작"}, [2]string{"m", "수동 입력"}, [2]string{"esc", "홈"},
 	)
 }

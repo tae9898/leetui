@@ -29,6 +29,19 @@ type lcNumberMsg struct {
 	Number string
 	Err    error
 }
+type openStmtMsg struct {
+	Prob problem.Problem
+	Site string
+	Slug string
+}
+type stmtLoadedMsg struct {
+	Slug       string
+	Title      string
+	Difficulty string
+	BodyHTML   string
+	Cached     bool
+	Err        error
+}
 type openRetryMsg struct{ Prob problem.Problem }
 type openLogMsg struct{}
 type openStatsMsg struct{}

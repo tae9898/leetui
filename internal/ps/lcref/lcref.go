@@ -134,3 +134,132 @@ func PadNumber(n string) string {
 	}
 	return n
 }
+
+type Statement struct {
+	Title      string
+	Difficulty string
+	BodyHTML   string
+}
+
+// FetchStatement는 지문(제목·난이도·본문 HTML)을 가져온다.
+func FetchStatement(ctx context.Context, slug string) (Statement, error) {
+	body := fmt.Sprintf(`{"query":"query($s:String!){question(titleSlug:$s){title difficulty content}}","variables":{"s":%q}}`, slug)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://leetcode.com/graphql", strings.NewReader(body))
+	if err != nil {
+		return Statement{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+	cctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	req = req.WithContext(cctx)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return Statement{}, err
+	}
+	defer resp.Body.Close()
+	var out struct {
+		Data struct {
+			Question struct {
+				Title      string `json:"title"`
+				Difficulty string `json:"difficulty"`
+				Content    string `json:"content"`
+			} `json:"question"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return Statement{}, err
+	}
+	q := out.Data.Question
+	if q.Content == "" {
+		return Statement{}, fmt.Errorf("지문 없음 (유료 문제일 수 있음): %s", slug)
+	}
+	return Statement{Title: q.Title, Difficulty: q.Difficulty, BodyHTML: q.Content}, nil
+}
+
+// Example은 지문 예제의 입출력 텍스트.
+type Example struct {
+	In  string
+	Out string
+}
+
+// ParseExamples는 지문 본문(HTML)에서 "Input: ... / Output: ..." 쌍을 뽑는다.
+// <pre> 블록 형식과 <p> 문단 형식(LC가 섞어 씀) 모두 처리한다.
+func ParseExamples(bodyHTML string) []Example {
+	var out []Example
+	var in, outBuf strings.Builder
+	mode := 0 // 0=대기, 1=in 수집, 2=out 수집
+	flush := func() {
+		if mode == 2 && outBuf.Len() > 0 {
+			out = append(out, Example{In: strings.TrimSpace(in.String()), Out: strings.TrimSpace(outBuf.String())})
+		}
+		in.Reset()
+		outBuf.Reset()
+		mode = 0
+	}
+	for _, line := range strings.Split(HTMLToText(bodyHTML), "\n") {
+		t := strings.TrimSpace(line)
+		lt := strings.ToLower(t)
+		switch {
+		case strings.HasPrefix(lt, "input:"):
+			flush()
+			mode = 1
+			in.WriteString(strings.TrimSpace(t[len("input:"):]))
+			in.WriteByte('\n')
+		case strings.HasPrefix(lt, "output:"):
+			if mode == 0 {
+				continue
+			}
+			mode = 2
+			outBuf.WriteString(strings.TrimSpace(t[len("output:"):]))
+			outBuf.WriteByte('\n')
+		case strings.HasPrefix(lt, "explanation:"), strings.HasPrefix(lt, "constraint"),
+			strings.HasPrefix(lt, "note:"), strings.HasPrefix(lt, "follow up"),
+			strings.HasPrefix(lt, "example "), lt == "":
+			// 문단 구분 — Output 뒤에서만 예제 확정
+			if mode == 2 && lt == "" {
+				flush()
+			} else if mode == 2 && (strings.HasPrefix(lt, "explanation:") || strings.HasPrefix(lt, "constraint") ||
+				strings.HasPrefix(lt, "note:") || strings.HasPrefix(lt, "follow up") || strings.HasPrefix(lt, "example ")) {
+				flush()
+			}
+		default:
+			if mode == 1 {
+				in.WriteString(t)
+				in.WriteByte('\n')
+			} else if mode == 2 {
+				outBuf.WriteString(t)
+				outBuf.WriteByte('\n')
+			}
+		}
+	}
+	flush()
+	return out
+}
+
+var (
+	reBr     = regexp.MustCompile(`(?i)<br\s*/?>`)
+	reBlock  = regexp.MustCompile(`(?i)</?(p|div|pre|ul|ol|li|h[1-6]|table|tr|blockquote)\b[^>]*>`)
+	reAnyTag = regexp.MustCompile(`(?s)<[^>]+>`)
+)
+
+// HTMLToText는 LC 지문 HTML을 터미널 텍스트로 바꾼다 (예제 <pre>는 개행 보존).
+func HTMLToText(html string) string {
+	s := reBr.ReplaceAllString(html, "\n")
+	s = reBlock.ReplaceAllStringFunc(s, func(tag string) string {
+		l := strings.ToLower(tag)
+		if strings.HasPrefix(l, "<li") {
+			return "\n  • "
+		}
+		return "\n"
+	})
+	s = reAnyTag.ReplaceAllString(s, "")
+	s = strings.NewReplacer(
+		"&nbsp;", " ", "&lt;", "<", "&gt;", ">", "&quot;", `"`,
+		"&#39;", "'", "&apos;", "'", "&amp;", "&",
+	).Replace(s)
+	for strings.Contains(s, "\n\n\n") {
+		s = strings.ReplaceAll(s, "\n\n\n", "\n\n")
+	}
+	return strings.TrimSpace(s)
+}
