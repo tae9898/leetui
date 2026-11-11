@@ -303,7 +303,7 @@ func (w *workbenchModel) filesText(innerW int) string {
 	if innerW < 24 {
 		return ""
 	}
-	nameW := innerW - 14
+	nameW := innerW - 18
 	if nameW < 10 {
 		nameW = 10
 	}
@@ -316,7 +316,7 @@ func (w *workbenchModel) filesText(innerW int) string {
 		size := stDimmer.Render(fmt.Sprintf("%6dB", f.Size))
 		row := padW(name, nameW+1) + size
 		if f.Size == 0 {
-			row += " " + stWarn.Render("비음")
+			row += " " + stWarn.Render("빈 파일")
 		}
 		b.WriteString(selRow(row, innerW, i == w.cursor))
 		if i < len(w.files)-1 {
