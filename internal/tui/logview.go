@@ -122,16 +122,40 @@ func (lm *logModel) view() string {
 		lm.cursor = maxInt(len(rows)-1, 0)
 	}
 	lm.fixScroll(len(rows))
-
-	var b strings.Builder
+	a := lm.a
+	paneH := a.height - 2
+	if paneH < 5 {
+		paneH = 5
+	}
 	filter := "전체"
 	if lm.filter != 0 {
 		filter = string(lm.filter)
 	}
-	b.WriteString(stTitle.Render(fmt.Sprintf(" 로그 (%d행) · 필터 %s · o/f/a 결과 · / 검색%s · 손상 행 %d",
-		len(rows), filter, searchMark(lm.searching, lm.search), lm.a.skipped)))
-	b.WriteByte('\n')
-	b.WriteString(stDim.Render("   날짜       사이트  문제                 결과   분  재도전일    메모"))
+	title := fmt.Sprintf("로그 · %d행 · %s · 손상 %d", len(rows), filter, a.skipped)
+	if lm.searching {
+		title += " · 검색: " + lm.search + "_"
+	} else if lm.search != "" {
+		title += " · 필터: " + lm.search
+	}
+	return paneBox(title, lm.rowsText(rows, a.width-4), a.width, paneH, true)
+}
+
+func (lm *logModel) helpText() string {
+	return keyBar(
+		[2]string{"↑↓", "이동"}, [2]string{"o/f/a", "결과 필터"},
+		[2]string{"/", "검색"}, [2]string{"esc", "홈"},
+	)
+}
+
+func (lm *logModel) rowsText(rows []int, innerW int) string {
+	if innerW < 60 {
+		return ""
+	}
+	dateW, siteW, resW, minW, dueW := 6, 5, 6, 4, 6
+	probW := innerW - dateW - siteW - resW - minW - dueW - 24
+	var b strings.Builder
+	b.WriteString(stDimmer.Render(padW("날짜", dateW) + padW("사이트", siteW) +
+		padW("문제", probW) + padW("결과", resW) + padW("분", minW+1) + padW("due", dueW) + "메모"))
 	b.WriteByte('\n')
 	end := lm.offsetTop + lm.visibleRows()
 	if end > len(rows) {
@@ -139,17 +163,18 @@ func (lm *logModel) view() string {
 	}
 	for vi := lm.offsetTop; vi < end; vi++ {
 		e := lm.a.entries[rows[vi]]
-		marker, style := " ", stNormal
-		if vi == lm.cursor {
-			marker, style = ">", stSel
+		res := resultStyle(e.Result).Render(padW(string(e.Result), resW))
+		note := truncateStr(e.Note, 24)
+		row := padW(shortDate(e.Date), dateW) + padW(e.Site, siteW) +
+			padW(truncateStr(e.Problem, probW-1), probW) + res +
+			padW(fmt.Sprintf("%d", e.Minutes), minW) + padW(shortDate(e.Due), dueW) + note
+		b.WriteString(selRow(row, innerW, vi == lm.cursor))
+		if vi < end-1 {
+			b.WriteByte('\n')
 		}
-		b.WriteString(style.Render(fmt.Sprintf("%s %s %-6s %-19s %-6s %3d %-11s %s",
-			marker, e.Date, e.Site, e.Problem, e.Result, e.Minutes, e.Due, truncateStr(e.Note, 30))))
-		b.WriteByte('\n')
+	}
+	if len(rows) == 0 {
+		b.WriteString(stDim.Render(" 기록 없음"))
 	}
 	return b.String()
-}
-
-func (lm *logModel) helpText() string {
-	return "Log: j/k 이동 · o/f/a 필터 · / 검색 · esc 홈 (읽기 전용)"
 }

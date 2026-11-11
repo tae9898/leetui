@@ -1,13 +1,13 @@
 package tui
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"pstui/internal/ps/problem"
 )
@@ -72,22 +72,34 @@ func (rm *retryModel) update(msg tea.Msg) tea.Cmd {
 }
 
 func (rm *retryModel) view() string {
-	var b strings.Builder
-	b.WriteString(stTitle.Render(fmt.Sprintf(" 재도전 · %s/%s", rm.prob.Site, rm.prob.Name)))
-	b.WriteByte('\n')
-	b.WriteString(fmt.Sprintf(" main.cpp → %s 로 백업 후 템플릿으로 초기화하고 .start를 지금으로 갱신합니다.\n", rm.backup))
+	a := rm.a
+	var lines []string
+	lines = append(lines, stTitle.Render(rm.backup)+" "+stDim.Render("로 백업 후 템플릿으로 초기화"))
+	lines = append(lines, stDim.Render(".start를 지금으로 갱신하고 편집기를 엽니다"))
+	lines = append(lines, "")
 	if _, err := os.Stat(filepath.Join(rm.prob.Dir, rm.backup)); err == nil {
-		b.WriteString(stWarn.Render(fmt.Sprintf(" ⚠ %s 이(가) 이미 있습니다. Enter를 누르면 덮어씁니다.", rm.backup)))
-		b.WriteByte('\n')
+		lines = append(lines, stWarn.Render("⚠ "+rm.backup+" 이(가) 이미 있습니다 — ⏎ 시 덮어씁니다"))
+	} else {
+		lines = append(lines, stDim.Render("기존 풀이는 사라지지 않고 백업 파일로 남습니다"))
 	}
 	if rm.err != "" {
-		b.WriteString(stFail.Render("⚠ " + rm.err))
-		b.WriteByte('\n')
+		lines = append(lines, stFail.Render("⚠ "+rm.err))
 	}
-	b.WriteString(stDim.Render(" enter/y 실행 · esc/n 취소"))
-	return b.String()
+	content := strings.Join(lines, "\n")
+	w := 56
+	if a.width-10 < w {
+		w = a.width - 10
+	}
+	h := len(lines) + 5
+	if a.height-4 < h {
+		h = a.height - 4
+	}
+	return lipgloss.Place(a.width, a.height-2, lipgloss.Center, lipgloss.Center,
+		paneBox("재도전 · "+rm.prob.Site+"/"+rm.prob.Name, content, w, h, true))
 }
 
 func (rm *retryModel) helpText() string {
-	return "Retry: enter 실행 · esc 취소"
+	return keyBar(
+		[2]string{"⏎/y", "실행"}, [2]string{"esc/n", "취소"},
+	)
 }

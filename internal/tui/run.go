@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"pstui/internal/ps/linediff"
 	"pstui/internal/ps/problem"
@@ -167,8 +168,8 @@ func (rm *runModel) update(msg tea.Msg) tea.Cmd {
 }
 
 func (rm *runModel) resizeVP() {
-	w := rm.a.width*55/100 - 4
-	h := rm.a.height - 8
+	w := rm.a.width*62/100 - 5
+	h := rm.a.height - 2 - 1 - 3 // 키바 + 상태줄 + 박스 크롬
 	if w < 20 || h < 3 {
 		return
 	}
@@ -267,85 +268,115 @@ func splitLines(s string) []string {
 	return strings.Split(s, "\n")
 }
 
-func (rm *runModel) view() string {
-	var b strings.Builder
-	name := "빌드와 테스트 (sanitizer)"
+func (rm *runModel) statusLine() string {
+	name := "sanitizer 빌드·테스트"
 	if rm.fast {
-		name = "fast 빌드와 시간 측정"
+		name = "fast 빌드"
 	}
-	b.WriteString(stTitle.Render(" " + name + " · " + rm.prob.Site + "/" + rm.prob.Name))
-	b.WriteString("  " + stDim.Render(rm.phaseText()))
-	b.WriteByte('\n')
-	if len(rm.cases) == 0 && rm.phase == 3 {
-		b.WriteString(stWarn.Render(" 테스트 케이스 없음 — Workbench에서 a 키로 생성"))
-		b.WriteByte('\n')
-		return b.String()
-	}
-	left := rm.caseList()
-	right := rm.vp.View()
-	if !rm.vpOK {
-		right = rm.detailContent()
-	}
-	b.WriteString(joinHorizontalPanes(padBlock(left, rm.a.height-7), padBlock(right, rm.a.height-7)))
-	b.WriteByte('\n')
-	b.WriteString(stDim.Render(fmt.Sprintf(" %d/%d PASS · Tab: diff/stderr/컴파일 · d: 결과 기록 · esc: %s",
-		rm.passCount(), len(rm.cases), escLabel(rm.phase))))
-	return b.String()
-}
-
-func escLabel(phase int) string {
-	if phase == 2 {
-		return "취소"
-	}
-	return "뒤로"
-}
-
-func (rm *runModel) phaseText() string {
+	var phase string
 	switch rm.phase {
 	case 1:
-		return "컴파일 중…"
+		phase = stTitle.Render("컴파일 중…")
 	case 2:
-		return fmt.Sprintf("케이스 %d/%d 실행 중", rm.cur+1, len(rm.cases))
+		phase = stWarn.Render(fmt.Sprintf("케이스 %d/%d 실행 중", rm.cur+1, len(rm.cases)))
 	case 4:
-		return "취소됨"
+		phase = stFail.Render("취소됨")
 	default:
 		if rm.compileOut != "" && rm.results == nil {
-			return "컴파일 실패 (Tab: 컴파일 로그)"
+			phase = stFail.Render("컴파일 실패 (Tab: 로그)")
+		} else {
+			phase = stOK.Render("완료")
 		}
-		return "완료"
+	}
+	return " " + stDim.Render(name+" · "+rm.prob.Site+"/"+rm.prob.Name+" · ") + phase +
+		stDim.Render(fmt.Sprintf(" · %d/%d PASS", rm.passCount(), len(rm.cases)))
+}
+
+func (rm *runModel) detailTitle() string {
+	name := ""
+	if rm.cursor < len(rm.cases) {
+		name = " · " + basename(rm.cases[rm.cursor].In)
+	}
+	switch rm.tab {
+	case 1:
+		return "stderr" + name
+	case 2:
+		return "컴파일 로그"
+	default:
+		return "diff" + name
 	}
 }
 
-func (rm *runModel) caseList() string {
+func (rm *runModel) view() string {
+	a := rm.a
+	paneH := a.height - 2 - 1 // 키바 + 상태줄
+	if paneH < 5 {
+		paneH = 5
+	}
+	leftW := a.width * 38 / 100
+	rightW := a.width - leftW - 1
+
+	caseTitle := fmt.Sprintf("케이스 · %d", len(rm.cases))
+	if len(rm.cases) == 0 && rm.phase == 3 {
+		caseTitle = "케이스 없음 — 작업 화면 a 키로 생성"
+	}
+	left := paneBox(caseTitle, rm.caseRows(leftW-4), leftW, paneH, true)
+	detail := rm.detailContent()
+	if rm.vpOK {
+		detail = rm.vp.View()
+	}
+	right := paneBox(rm.detailTitle(), detail, rightW, paneH, false)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
+	return rm.statusLine() + "\n" + body
+}
+
+func (rm *runModel) caseRows(innerW int) string {
+	if innerW < 18 {
+		return ""
+	}
 	var b strings.Builder
-	b.WriteString(stTitle.Render(" 케이스"))
+	b.WriteString(stDimmer.Render(padW("케이스", innerW-12) + padW("판정", 6) + "시간"))
 	b.WriteByte('\n')
 	for i, c := range rm.cases {
-		marker, style := " ", stNormal
-		if i == rm.cursor {
-			marker, style = ">", stSel
-		}
-		status := "…"
-		var ms int64
-		if rm.phase == 1 && i == 0 {
-			status = ""
-		}
+		var status, ms string
 		if i < len(rm.results) && rm.results[i].Status != "" {
-			s := rm.results[i].Status
-			ms = rm.results[i].Millis
-			switch s {
+			s := string(rm.results[i].Status)
+			ms = fmt.Sprintf("%4dms", rm.results[i].Millis)
+			switch rm.results[i].Status {
 			case runner.Pass:
-				status = stOK.Render(string(s))
+				status = stOK.Render(padW(s, 6))
 			case runner.NoExp:
-				status = stWarn.Render(string(s))
+				status = stWarn.Render(padW(s, 6))
 			default:
-				status = stFail.Render(string(s))
+				status = stFail.Render(padW(s, 6))
 			}
+		} else if i == rm.cur && rm.phase == 2 {
+			status = stTitle.Render(padW("…", 6))
+		} else {
+			status = padW("·", 6)
 		}
-		b.WriteString(style.Render(fmt.Sprintf("%s %-8s %-6s %4dms", marker, basename(c.In), status, ms)))
-		b.WriteByte('\n')
+		nameW := innerW - 12
+		row := padW(truncateStr(basename(c.In), nameW-1), nameW) + status + ms
+		b.WriteString(selRow(row, innerW, i == rm.cursor))
+		if i < len(rm.cases)-1 {
+			b.WriteByte('\n')
+		}
+	}
+	if len(rm.cases) == 0 {
+		b.WriteString(stDim.Render(" .in 파일이 없음"))
 	}
 	return b.String()
+}
+
+func (rm *runModel) helpText() string {
+	esc := "뒤로"
+	if rm.phase == 2 {
+		esc = "취소"
+	}
+	return keyBar(
+		[2]string{"↑↓", "케이스"}, [2]string{"Tab", "diff/stderr/로그"},
+		[2]string{"d", "결과 기록"}, [2]string{"esc", esc},
+	)
 }
 
 func basename(p string) string {

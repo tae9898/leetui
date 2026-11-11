@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"pstui/internal/ps/problem"
 )
@@ -266,64 +267,94 @@ func (w *workbenchModel) elapsed() string {
 }
 
 func (w *workbenchModel) view() string {
-	var b strings.Builder
-	b.WriteString(stTitle.Render(fmt.Sprintf(" %s/%s", w.prob.Site, w.prob.Name)))
-	b.WriteString(stDim.Render(fmt.Sprintf("  · 경과 %s · %s", w.elapsed(), w.prob.Dir)))
-	b.WriteByte('\n')
-	b.WriteString(stDim.Render(fmt.Sprintf(" 문제: %s · 유형: %s · 목표: %s", w.header[0], w.header[1], w.header[2])))
-	b.WriteByte('\n')
-	if w.err != "" {
-		b.WriteString(stFail.Render("⚠ " + w.err))
-		b.WriteByte('\n')
-	}
+	a := w.a
+	sumH := 0
 	if w.summary != "" {
-		b.WriteString(stDim.Render(" 마지막 실행: " + w.summary))
-		b.WriteByte('\n')
+		sumH = 1
 	}
-	b.WriteString(w.filesPane())
-	b.WriteByte('\n')
-	b.WriteString(w.historyPane())
-	return b.String()
+	paneH := a.height - 2 - 1 - sumH
+	if paneH < 5 {
+		paneH = 5
+	}
+	leftW := a.width * 42 / 100
+	rightW := a.width - leftW - 1
+
+	left := paneBox("파일", w.filesText(leftW-4), leftW, paneH, true)
+	right := paneBox("이력", w.historyText(rightW-4), rightW, paneH, false)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, left, " ", right)
+
+	out := w.infoLine() + "\n" + body
+	if sumH > 0 {
+		out += "\n" + stDim.Render(" 마지막 실행: "+w.summary)
+	}
+	return out
 }
 
-func (w *workbenchModel) filesPane() string {
+func (w *workbenchModel) infoLine() string {
+	hdr := ""
+	if w.header[0] != "" || w.header[1] != "" || w.header[2] != "" {
+		hdr = stDimmer.Render(fmt.Sprintf("  %s · %s · %s", w.header[0], w.header[1], w.header[2]))
+	}
+	return " " + stTitle.Render(w.prob.Site+"/"+w.prob.Name) +
+		stDim.Render(" · 경과 "+w.elapsed()+" · ") + stDimmer.Render(w.prob.Dir) + hdr
+}
+
+func (w *workbenchModel) filesText(innerW int) string {
+	if innerW < 24 {
+		return ""
+	}
+	nameW := innerW - 14
+	if nameW < 10 {
+		nameW = 10
+	}
 	var b strings.Builder
-	b.WriteString(stTitle.Render(" 파일"))
-	b.WriteByte('\n')
 	for i, f := range w.files {
-		marker, style := " ", stNormal
-		if i == w.cursor {
-			marker, style = ">", stSel
+		name := truncateStr(f.Name, nameW)
+		if f.Kind == 3 {
+			name = stDim.Render(name)
 		}
-		empty := ""
+		size := stDimmer.Render(fmt.Sprintf("%6dB", f.Size))
+		row := padW(name, nameW+1) + size
 		if f.Size == 0 {
-			empty = stWarn.Render("(빈 파일)")
+			row += " " + stWarn.Render("비음")
 		}
-		b.WriteString(style.Render(fmt.Sprintf("%s %-22s %6dB %s", marker, f.Name, f.Size, empty)))
-		b.WriteByte('\n')
+		b.WriteString(selRow(row, innerW, i == w.cursor))
+		if i < len(w.files)-1 {
+			b.WriteByte('\n')
+		}
+	}
+	if len(w.files) == 0 {
+		b.WriteString(stDim.Render(" main.cpp 없음"))
 	}
 	return b.String()
 }
 
-func (w *workbenchModel) historyPane() string {
-	var b strings.Builder
-	b.WriteString(stTitle.Render(" 이력"))
-	b.WriteByte('\n')
+func (w *workbenchModel) historyText(innerW int) string {
 	hist := w.a.problemEntries(w.prob.Site, w.prob.Name)
 	if len(hist) == 0 {
-		b.WriteString(stDim.Render(" 기록 없음"))
-		b.WriteByte('\n')
+		return stDim.Render(" 기록 없음")
 	}
+	var b strings.Builder
 	for i := len(hist) - 1; i >= 0; i-- {
 		e := hist[i]
-		b.WriteString(fmt.Sprintf("%s %-6s %3d분 due %s %s\n",
-			e.Date, e.Result, e.Minutes, e.Due, stDim.Render(e.Note)))
+		res := resultStyle(e.Result).Render(padW(string(e.Result), 6))
+		note := truncateStr(e.Note, innerW-32)
+		b.WriteString(padW(shortDate(e.Date), 6) + res +
+			padW(fmt.Sprintf("%3d분", e.Minutes), 6) +
+			stDim.Render(padW("due "+shortDate(e.Due), 10)) + " " + note)
+		if i > 0 {
+			b.WriteByte('\n')
+		}
 	}
 	return b.String()
 }
 
 func (w *workbenchModel) helpText() string {
-	return "Workbench: e 편집 · r 실행 · F fast빌드 · d 기록 · t 재도전 · a 케이스추가 · o .out편집 · S .start재설정 · esc 홈"
+	return keyBar(
+		[2]string{"e", "편집"}, [2]string{"r", "실행"}, [2]string{"F", "fast빌드"},
+		[2]string{"d", "기록"}, [2]string{"t", "재도전"}, [2]string{"a", "케이스"},
+		[2]string{"o", ".out 편집"}, [2]string{"esc", "홈"},
+	)
 }
 
 // setSummary는 Run 화면 종료 후 요약을 남긴다.

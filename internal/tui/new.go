@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"pstui/internal/ps/problem"
 )
@@ -27,12 +28,15 @@ type newModel struct {
 func newNew(a *App) *newModel {
 	n := &newModel{a: a}
 	n.site = textinput.New()
+	n.site.Prompt = ""
 	n.site.Placeholder = "lc"
 	n.site.CharLimit = 20
 	n.id = textinput.New()
+	n.id.Prompt = ""
 	n.id.Placeholder = "0056"
 	n.id.CharLimit = 12
 	n.name = textinput.New()
+	n.name.Prompt = ""
 	n.name.Placeholder = "merge-intervals"
 	n.name.CharLimit = 60
 	return n
@@ -137,45 +141,43 @@ func (n *newModel) submit() tea.Cmd {
 }
 
 func (n *newModel) view() string {
-	var b strings.Builder
-	b.WriteString(stTitle.Render(" 새 문제"))
-	b.WriteString(stDim.Render(" · psnew lc 0056 merge-intervals 에 해당"))
-	b.WriteByte('\n')
-	fields := []struct {
-		label string
-		ti    *textinput.Model
-	}{
-		{"사이트", &n.site},
-		{"번호", &n.id},
-		{"이름", &n.name},
+	a := n.a
+	sites := strings.Join(n.knownSites(), ", ")
+	if sites == "" {
+		sites = "lc hr task mock"
 	}
-	for i, f := range fields {
-		b.WriteString(fieldLabel(n.field == i, f.label))
-		if i == 0 {
-			b.WriteString(stDim.Render(" (" + strings.Join(n.knownSites(), ", ") + ")"))
-			b.WriteByte('\n')
-			b.WriteString(strings.Repeat(" ", 14))
-		}
-		b.WriteString(f.ti.View())
-		b.WriteByte('\n')
-	}
+	var lines []string
+	lines = append(lines, fieldRow(n.field == 0, "사이트", n.site.View()))
+	lines = append(lines, stDimmer.Render("             "+truncateStr(sites, 44)))
+	lines = append(lines, fieldRow(n.field == 1, "번호", n.id.View()))
+	lines = append(lines, fieldRow(n.field == 2, "이름", n.name.View()))
+	lines = append(lines, "")
 	preview := n.dirPath()
 	if n.site.Value() == "" || n.id.Value() == "" || n.name.Value() == "" {
 		preview = "…"
 	}
-	b.WriteString(stDim.Render(" 경로: " + preview))
+	lines = append(lines, stDim.Render("생성 경로  ")+stDimmer.Render(preview))
 	if n.exists {
-		b.WriteString(stWarn.Render("  (기존 문제 — Enter로 열기, main.cpp 보존)"))
+		lines = append(lines, stWarn.Render("기존 문제 — ⏎ 로 열기 (main.cpp 보존)"))
 	}
-	b.WriteByte('\n')
 	if n.err != "" {
-		b.WriteString(stFail.Render("⚠ " + n.err))
-		b.WriteByte('\n')
+		lines = append(lines, stFail.Render("⚠ "+n.err))
 	}
-	b.WriteString(stDim.Render(" tab 필드 이동 · enter 생성(후 편집기) · esc 취소"))
-	return b.String()
+	content := strings.Join(lines, "\n")
+	w := 58
+	if a.width-10 < w {
+		w = a.width - 10
+	}
+	h := len(lines) + 5
+	if a.height-4 < h {
+		h = a.height - 4
+	}
+	return lipgloss.Place(a.width, a.height-2, lipgloss.Center, lipgloss.Center,
+		paneBox("새 문제 · psnew", content, w, h, true))
 }
 
 func (n *newModel) helpText() string {
-	return "New: tab 필드 · enter 생성 · esc 취소"
+	return keyBar(
+		[2]string{"tab", "필드 이동"}, [2]string{"⏎", "생성 후 편집기"}, [2]string{"esc", "취소"},
+	)
 }

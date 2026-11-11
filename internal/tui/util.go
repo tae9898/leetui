@@ -33,32 +33,19 @@ func joinHorizontalPanes(left, right string) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right)
 }
 
-// overlayHelp는 본문 위에 도움말 상자를 겹쳐 그린다.
-func overlayHelp(body, text string) string {
-	lines := strings.Split(body, "\n")
-	box := stBorder.Render(stKeyHelp.Render(" " + text + " "))
-	boxLines := strings.Split(box, "\n")
-	y := len(lines)/2 - len(boxLines)/2
-	if y < 0 {
-		y = 0
+// helpCard는 화면 중앙에 띄우는 도움말 카드.
+func helpCard(text string, width, height int) string {
+	lines := strings.Count(text, "\n") + 1
+	w := width - 8
+	if w > 64 {
+		w = 64
 	}
-	for i, bl := range boxLines {
-		if y+i >= len(lines) {
-			break
-		}
-		lines[y+i] = overlayLine(lines[y+i], bl)
+	h := lines + 4
+	if h > height-4 {
+		h = height - 4
 	}
-	return strings.Join(lines, "\n")
-}
-
-// overlayLine은 한 줄 위에 다른 줄을 왼쪽 정렬로 덮어쓴다 (터미널 폭 초과 방지).
-func overlayLine(base, top string) string {
-	w := lipgloss.Width(base)
-	tw := lipgloss.Width(top)
-	if tw >= w {
-		return top
-	}
-	return top + base[tw:]
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center,
+		paneBox("도움말", text, w, h, true))
 }
 
 func truncateStr(s string, n int) string {

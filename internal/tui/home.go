@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"pstui/internal/ps/problem"
 	"pstui/internal/ps/pslog"
@@ -74,78 +75,112 @@ func (h *homeModel) selectedProblem(due []pslog.DueItem) *problem.Problem {
 }
 
 func (h *homeModel) view() string {
-	var b strings.Builder
-	for _, w := range h.a.warnings() {
-		b.WriteString(stBanner.Render("⚠ " + w))
-		b.WriteByte('\n')
+	a := h.a
+	bodyH := a.height - 2 // 헤더 + 키바
+	var top []string
+	for _, w := range a.warnings() {
+		top = append(top, stBanner.Render("⚠ "+w))
 	}
-	b.WriteString(h.duePane())
+	paneH := bodyH - len(top) - 1
+	if paneH < 5 {
+		paneH = 5
+	}
+	gap := 1
+	leftW := a.width*55/100 - gap
+	rightW := a.width - leftW - gap
+
+	due := a.dueList()
+	left := paneBox(fmt.Sprintf("오늘 재도전 · %d", len(due)), h.dueRows(due, leftW-4), leftW, paneH, true)
+	right := paneBox("최근 기록", h.recentRows(rightW-4), rightW, paneH, false)
+
+	body := lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), right)
+	out := strings.Join(top, "\n")
+	if out != "" {
+		out += "\n"
+	}
+	return out + body + "\n" + h.weekLine()
+}
+
+// dueRows는 재도전 표 내용 (제목 제외, innerW는 패널 내부 폭).
+func (h *homeModel) dueRows(due []pslog.DueItem, innerW int) string {
+	if innerW < 20 {
+		return ""
+	}
+	probW := innerW - 11 - 7
+	var b strings.Builder
+	b.WriteString(stDimmer.Render(padW("재도전", 11) + padW("문제", probW) + "결과"))
 	b.WriteByte('\n')
-	b.WriteString(h.weekLine())
+	if len(due) == 0 {
+		b.WriteString(stDim.Render("오늘은 없음 — n 으로 새 문제"))
+		return b.String()
+	}
+	for i, d := range due {
+		site, name, _ := splitKey(d.Key)
+		prob := truncateStr(site+"/"+name, probW-1)
+		res := resultStyle(d.Result).Render(padW(string(d.Result), 6))
+		row := padW(shortDate(d.Due), 10) + " " + padW(prob, probW) + res
+		b.WriteString(selRow(row, innerW, i == h.cursor))
+		if i < len(due)-1 {
+			b.WriteByte('\n')
+		}
+	}
 	return b.String()
 }
 
-func (h *homeModel) duePane() string {
-	due := h.a.dueList()
+func (h *homeModel) recentRows(innerW int) string {
 	recent := pslog.Recent(h.a.entries, 10)
-
-	var left strings.Builder
-	left.WriteString(stTitle.Render(fmt.Sprintf(" 오늘 재도전 (%d)", len(due))))
-	left.WriteByte('\n')
-	if len(due) == 0 {
-		left.WriteString(stDim.Render(" 없음 · psdue 규칙: 마지막 행 기준 due<=오늘"))
-	} else {
-		left.WriteString(stDim.Render(" 재도전일  문제                 결과"))
-		left.WriteByte('\n')
-		for i, d := range due {
-			site, name, _ := splitKey(d.Key)
-			marker := " "
-			style := stNormal
-			if i == h.cursor {
-				marker = ">"
-				style = stSel
-			}
-			left.WriteString(style.Render(fmt.Sprintf("%s%s %-9s %-18s %s", marker, " ", d.Due, site+"/"+name, d.Result)))
-			left.WriteByte('\n')
-		}
+	if innerW < 24 {
+		return ""
 	}
-
-	var right strings.Builder
-	right.WriteString(stTitle.Render(" 최근 기록"))
-	right.WriteByte('\n')
+	probW := innerW - 5 - 7 - 5
+	var b strings.Builder
+	b.WriteString(stDimmer.Render(padW("날짜", 6) + padW("문제", probW) + padW("결과", 7) + padW("분", 4)))
+	b.WriteByte('\n')
 	if len(recent) == 0 {
-		right.WriteString(stDim.Render(" 기록 없음"))
-	} else {
-		for _, e := range recent {
-			note := truncateStr(e.Note, 20)
-			rs := stOK
-			if e.Result != "ok" {
-				rs = stFail
-			}
-			right.WriteString(fmt.Sprintf("%s %-16s %s %3d분 %s\n",
-				e.Date, e.Site+"/"+e.Problem, rs.Render(string(e.Result)), e.Minutes, stDim.Render(note)))
-		}
+		b.WriteString(stDim.Render("기록 없음"))
+		return b.String()
 	}
-
-	lp := padBlock(left.String(), h.rowsFor(len(due)+3))
-	rp := padBlock(right.String(), h.rowsFor(len(recent)+1))
-	return joinHorizontalPanes(lp, rp)
-}
-
-func (h *homeModel) rowsFor(rows int) int {
-	max := h.a.height - 7
-	if rows > max {
-		return max
+	for _, e := range recent {
+		prob := truncateStr(e.Site+"/"+e.Problem, probW-1)
+		res := resultStyle(e.Result).Render(padW(string(e.Result), 7))
+		b.WriteString(padW(shortDate(e.Date), 6) + padW(prob, probW) + res + padW(fmt.Sprintf("%d", e.Minutes), 4))
+		b.WriteByte('\n')
 	}
-	return rows
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 func (h *homeModel) weekLine() string {
 	w := pslog.Week(h.a.entries, time.Now())
-	return stDim.Render(fmt.Sprintf(" 이번 주: %d회 시도 · ok %d / fail %d / again %d · 평균 %d분",
-		w.Solved, w.Ok, w.Fail, w.Again, w.AvgMinutes))
+	return " " + stDim.Render(fmt.Sprintf("이번 주 %d회 · ", w.Solved)) +
+		stOK.Render(fmt.Sprintf("ok %d", w.Ok)) + stDim.Render(" / ") +
+		stFail.Render(fmt.Sprintf("fail %d", w.Fail)) + stDim.Render(" / ") +
+		stWarn.Render(fmt.Sprintf("again %d", w.Again)) +
+		stDim.Render(fmt.Sprintf(" · 평균 %d분", w.AvgMinutes))
 }
 
 func (h *homeModel) helpText() string {
-	return "Home: j/k 이동 · Enter 작업 열기 · t 재도전 · n 새 문제 · p 문제 목록 · l 로그 · s 통계 · r 새로고침 · q 종료"
+	return keyBar(
+		[2]string{"↑↓", "이동"}, [2]string{"⏎", "열기"}, [2]string{"t", "재도전"},
+		[2]string{"n", "새 문제"}, [2]string{"p", "문제"}, [2]string{"l", "로그"},
+		[2]string{"s", "통계"}, [2]string{"r", "새로고침"}, [2]string{"q", "종료"},
+	)
+}
+
+// shortDate는 "2026-11-14" → "11-14".
+func shortDate(d string) string {
+	if len(d) == 10 {
+		return d[5:]
+	}
+	return d
+}
+
+func resultStyle(r pslog.Result) lipgloss.Style {
+	switch r {
+	case "ok":
+		return stOK
+	case "again":
+		return stWarn
+	default:
+		return stFail
+	}
 }

@@ -106,33 +106,64 @@ func (sm *statsModel) update(msg tea.Msg) tea.Cmd {
 }
 
 func (sm *statsModel) view() string {
+	a := sm.a
+	topH := a.height - 2 - 6
+	if topH < 5 {
+		topH = 5
+	}
+	botH := a.height - 2 - topH - 1
+	if botH < 4 {
+		botH = 4
+	}
+	top := paneBox("유형별 · main.cpp 헤더 기준", sm.typeText(a.width-4), a.width, topH, true)
+	bottom := paneBox("주차별 · 최근 5주", sm.weekText(a.width-4), a.width, botH, false)
+	return top + "\n" + bottom
+}
+
+func (sm *statsModel) typeText(innerW int) string {
+	if innerW < 40 {
+		return ""
+	}
 	var b strings.Builder
-	b.WriteString(stTitle.Render(" 통계 · 유형별 (main.cpp 헤더 // 유형: 기준)"))
-	b.WriteByte('\n')
-	b.WriteString(stDim.Render("   유형                 시도  fail%  평균분"))
+	b.WriteString(stDimmer.Render(padW("유형", 20) + padW("시도", 6) + padW("fail%", 7) + "평균분"))
 	b.WriteByte('\n')
 	rows := sm.byType()
-	if len(rows) == 0 {
-		b.WriteString(stDim.Render(" 기록 없음"))
-		b.WriteByte('\n')
-	}
 	for _, r := range rows {
 		failPct := 0
 		if r.tries > 0 {
 			failPct = r.fails * 100 / r.tries
 		}
-		b.WriteString(fmt.Sprintf("   %-18s %4d  %4d%%  %5d\n", truncateStr(r.typ, 18), r.tries, failPct, r.avgMin))
+		failCell := stDim.Render(fmt.Sprintf("%4d%%", failPct))
+		if failPct >= 50 && r.tries >= 2 {
+			failCell = stFail.Render(fmt.Sprintf("%4d%%", failPct))
+		}
+		b.WriteString(" " + padW(truncateStr(r.typ, 18), 20) +
+			padW(fmt.Sprintf("%d", r.tries), 6) + "  " + failCell + fmt.Sprintf("  %5d", r.avgMin))
+		b.WriteByte('\n')
 	}
-	b.WriteString(stTitle.Render(" 주차별 (최근 5주)"))
-	b.WriteByte('\n')
-	for _, w := range sm.byWeek() {
-		b.WriteString(fmt.Sprintf("   %s  %s\n", w[0], w[1]))
+	if len(rows) == 0 {
+		return stDim.Render(" 기록 없음")
 	}
-	b.WriteString(stDim.Render(" esc 홈"))
-	b.WriteByte('\n')
+	return strings.TrimSuffix(b.String(), "\n")
+}
+
+func (sm *statsModel) weekText(innerW int) string {
+	weeks := sm.byWeek()
+	if len(weeks) == 0 {
+		return stDim.Render(" 기록 없음")
+	}
+	var b strings.Builder
+	for i, w := range weeks {
+		b.WriteString(" " + stTitle.Render(padW(w[0], 10)) + stDim.Render(w[1]))
+		if i < len(weeks)-1 {
+			b.WriteByte('\n')
+		}
+	}
 	return b.String()
 }
 
 func (sm *statsModel) helpText() string {
-	return "Stats: esc 홈"
+	return keyBar(
+		[2]string{"esc", "홈"}, [2]string{"?", "도움말"}, [2]string{"ctrl+c", "종료"},
+	)
 }

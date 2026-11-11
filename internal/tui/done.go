@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"pstui/internal/ps/problem"
 	"pstui/internal/ps/pslog"
@@ -28,9 +29,11 @@ type doneModel struct {
 func newDone(a *App) *doneModel {
 	d := &doneModel{a: a, results: []string{"ok", "fail", "again"}}
 	d.memo = textinput.New()
+	d.memo.Prompt = ""
 	d.memo.Placeholder = "막힌 지점 한 줄"
 	d.memo.CharLimit = 200
 	d.mins = textinput.New()
+	d.mins.Prompt = ""
 	d.mins.Placeholder = "분"
 	d.mins.CharLimit = 5
 	return d
@@ -155,70 +158,77 @@ func (d *doneModel) updateAfterAppend(msg appendDoneMsg) tea.Cmd {
 }
 
 func (d *doneModel) view() string {
-	var b strings.Builder
-	b.WriteString(stTitle.Render(fmt.Sprintf(" 결과 기록 · %s/%s", d.prob.Site, d.prob.Name)))
-	b.WriteByte('\n')
-
-	b.WriteString(fieldLabel(d.field == 0, "결과"))
+	a := d.a
+	res := make([]string, 0, 3)
 	for i, r := range d.results {
-		mark := " "
 		if i == d.cur {
-			mark = "●"
+			res = append(res, stKey.Render("● "+r))
+		} else {
+			res = append(res, stDim.Render("○ "+r))
 		}
-		style := stNormal
-		if i == d.cur {
-			style = stOK
-		}
-		b.WriteString(" " + style.Render(mark+" "+r))
 	}
-	b.WriteString(stDim.Render("  ←/→ 또는 1~3"))
-	b.WriteByte('\n')
-
-	b.WriteString(fieldLabel(d.field == 1, "메모") + d.memo.View())
-	b.WriteByte('\n')
-
+	var lines []string
+	lines = append(lines, fieldRow(d.field == 0, "결과", strings.Join(res, "   ")+stDimmer.Render("   ←/→ 또는 1~3")))
+	lines = append(lines, fieldRow(d.field == 1, "메모", d.memo.View()))
 	minsLabel := "소요분"
 	if d.minsAuto {
-		minsLabel += " (.start 자동)"
+		minsLabel += " (자동)"
 	} else {
-		minsLabel += " (.start 없음 — 직접 입력)"
+		minsLabel += " (직접 입력)"
 	}
-	b.WriteString(fieldLabel(d.field == 2, minsLabel) + d.mins.View())
-	b.WriteByte('\n')
-
+	lines = append(lines, fieldRow(d.field == 2, minsLabel, d.mins.View()))
 	if e, err := d.entry(); err == nil {
-		preview := strings.ReplaceAll(string(e.Marshal()), "\t", "⇥")
-		b.WriteString(stDim.Render(" 미리보기: " + strings.TrimSpace(preview)))
-		b.WriteByte('\n')
-		b.WriteString(stDim.Render(" 재도전일: " + e.Due))
-		b.WriteByte('\n')
+		preview := strings.ReplaceAll(strings.TrimSpace(string(e.Marshal())), "\t", stDimmer.Render("⇥"))
+		lines = append(lines, "")
+		lines = append(lines, stDim.Render("저장될 행  ")+stDimmer.Render(preview))
+		lines = append(lines, stDim.Render("재도전일   ")+dueStyle(e.Due).Render(e.Due))
 	} else {
-		b.WriteString(stFail.Render(" " + err.Error()))
-		b.WriteByte('\n')
-	}
-	if d.err != "" {
-		b.WriteString(stFail.Render("⚠ " + d.err))
-		b.WriteByte('\n')
+		lines = append(lines, stFail.Render(err.Error()))
 	}
 	today := time.Now().Format("2006-01-02")
 	for _, en := range d.a.problemEntries(d.prob.Site, d.prob.Name) {
 		if en.Date == today {
-			b.WriteString(stWarn.Render(" 오늘 이미 기록 있음 (fish처럼 누적 허용)"))
-			b.WriteByte('\n')
+			lines = append(lines, stWarn.Render("오늘 이미 기록 있음 — fish처럼 누적 허용"))
 			break
 		}
 	}
-	b.WriteString(stDim.Render(" enter 저장 · esc 취소"))
-	return b.String()
+	if d.err != "" {
+		lines = append(lines, stFail.Render("⚠ "+d.err))
+	}
+	content := strings.Join(lines, "\n")
+	w := 68
+	if a.width-10 < w {
+		w = a.width - 10
+	}
+	h := len(lines) + 5
+	if a.height-4 < h {
+		h = a.height - 4
+	}
+	content = fitWidth(content, w-6)
+	return lipgloss.Place(a.width, a.height-2, lipgloss.Center, lipgloss.Center,
+		paneBox("결과 기록 · "+d.prob.Site+"/"+d.prob.Name, content, w, h, true))
 }
 
-func fieldLabel(active bool, name string) string {
-	if active {
-		return stSel.Render(fmt.Sprintf(" %-12s", name))
+func dueStyle(due string) lipgloss.Style {
+	if due == "-" {
+		return stOK
 	}
-	return fmt.Sprintf(" %-12s", name)
+	return stWarn
+}
+
+func fieldRow(active bool, label, value string) string {
+	mark := "  "
+	lab := stDim.Render(padW(label, 12))
+	if active {
+		mark = stKey.Render("▸ ")
+		lab = stTitle.Render(padW(label, 12))
+	}
+	return mark + lab + value
 }
 
 func (d *doneModel) helpText() string {
-	return "Done: ←/→ 결과 · j/k 필드 이동 · enter 저장 · esc 취소"
+	return keyBar(
+		[2]string{"←/→", "결과"}, [2]string{"↑↓", "필드"}, [2]string{"1~3", "결과 선택"},
+		[2]string{"⏎", "저장"}, [2]string{"esc", "취소"},
+	)
 }

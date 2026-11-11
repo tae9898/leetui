@@ -197,43 +197,71 @@ func (pm *problemsModel) view() string {
 	if pm.cursor >= len(rows) {
 		pm.cursor = maxInt(len(rows)-1, 0)
 	}
-	var b strings.Builder
+	a := pm.a
+	paneH := a.height - 2
+	if paneH < 5 {
+		paneH = 5
+	}
 	filter := pm.filterSite
 	if filter == "" {
 		filter = "전체"
 	}
-	b.WriteString(stTitle.Render(fmt.Sprintf(" 문제 목록 (%d) · 사이트: %s · 1~4/tab 필터 · d: due만 (%s) · /: 검색%s",
-		len(rows), filter, boolMark(pm.dueOnly), searchMark(pm.searching, pm.search))))
-	b.WriteByte('\n')
-	b.WriteString(stDim.Render("   사이트  문제                 마지막        재도전     유형"))
+	title := fmt.Sprintf("문제 · %d · %s", len(rows), filter)
+	if pm.dueOnly {
+		title += " · due만"
+	}
+	if pm.searching {
+		title += " · 검색: " + pm.search + "_"
+	}
+	innerW := a.width - 4
+	return paneBox(title, pm.rowsText(rows, innerW), a.width, paneH, true)
+}
+
+func (pm *problemsModel) rowsText(rows []probRow, innerW int) string {
+	if innerW < 40 {
+		return ""
+	}
+	siteW, lastW, dueW, typW := 6, 17, 6, 10
+	nameW := innerW - siteW - lastW - dueW - typW - 1
+	var b strings.Builder
+	b.WriteString(stDimmer.Render(
+		padW("사이트", siteW) + padW("문제", nameW) + padW("마지막", lastW) +
+			padW("due", dueW) + "유형"))
 	b.WriteByte('\n')
 	for i, r := range rows {
-		marker, style := " ", stNormal
-		if i == pm.cursor {
-			marker, style = ">", stSel
-		}
-		lastStr, dueStr := "-", "-"
+		lastStr, dueStr := stDimmer.Render(padW("-", lastW-1)), "-"
 		if r.last != nil {
-			lastStr = fmt.Sprintf("%s %s", r.last.Date, r.last.Result)
-			dueStr = r.last.Due
+			res := resultStyle(r.last.Result).Render(padW(string(r.last.Result), 5))
+			lastStr = padW(shortDate(r.last.Date), 11) + res
+			dueStr = shortDate(r.last.Due)
 		}
 		progress := " "
 		if r.inProgress {
-			progress = "▶"
+			progress = stWarn.Render("▶")
 		}
+		name := truncateStr(r.name, nameW-2)
 		if r.ghost {
-			style = stDim
+			name = stDim.Render(name) + stDimmer.Render("†")
 		}
-		line := fmt.Sprintf("%s %s%-6s %-19s %-12s %-10s %s%s",
-			marker, progress, r.site, r.name, lastStr, dueStr, r.typ, ghostMark(r.ghost))
-		b.WriteString(style.Render(line))
-		b.WriteByte('\n')
+		row := progress + padW(r.site, siteW-1) + padW(name, nameW) +
+			lastStr + padW(dueStr, dueW) + truncateStr(r.typ, typW)
+		b.WriteString(selRow(row, innerW, i == pm.cursor))
+		if i < len(rows)-1 {
+			b.WriteByte('\n')
+		}
+	}
+	if len(rows) == 0 {
+		b.WriteString(stDim.Render(" 해당 문제 없음"))
 	}
 	return b.String()
 }
 
 func (pm *problemsModel) helpText() string {
-	return "Problems: j/k 이동 · Enter 작업 · / 검색 · tab/1~4 사이트 필터 · d due만 · n 새 문제 · esc 홈"
+	return keyBar(
+		[2]string{"↑↓", "이동"}, [2]string{"⏎", "작업 열기"}, [2]string{"/", "검색"},
+		[2]string{"tab", "사이트"}, [2]string{"d", "due만"}, [2]string{"n", "새 문제"},
+		[2]string{"esc", "홈"},
+	)
 }
 
 func boolMark(b bool) string {

@@ -2,7 +2,6 @@
 package tui
 
 import (
-	"fmt"
 	"os/exec"
 	"path/filepath"
 	"time"
@@ -229,20 +228,22 @@ func (a *App) View() string {
 		body = a.statsM.view()
 	}
 	if a.showHelp {
-		body = overlayHelp(body, a.helpText())
+		body = helpCard(a.helpText(), a.width, a.height-2)
 	}
 	return a.frame(body)
 }
 
+var screenNames = map[screen]string{
+	scrHome: "홈", scrProblems: "문제", scrWorkbench: "작업", scrRun: "실행",
+	scrDone: "기록", scrNew: "새 문제", scrRetry: "재도전", scrLog: "로그", scrStats: "통계",
+}
+
 func (a *App) frame(body string) string {
-	title := fmt.Sprintf(" pstui · %s · %s ", a.cfg.Root, time.Now().Format("2006-01-02"))
-	footer := " ?: 도움말 · ctrl+c 종료"
-	if a.cur != scrHome {
-		footer = " esc: 뒤로 ·" + footer
-	} else {
-		footer = " q: 종료 ·" + footer
-	}
-	return stTitle.Render(title) + "\n" + body + "\n" + stDim.Render(footer)
+	left := stAccent.Render("pstui") + stDim.Render(" · "+screenNames[a.cur])
+	right := stDim.Render(a.cfg.Root + " · " + time.Now().Format("2006-01-02 15:04"))
+	head := header(left, right, a.width)
+	body = fitLines(body, a.height-2)
+	return head + "\n" + body + "\n" + a.helpText()
 }
 
 func (a *App) dueList() []pslog.DueItem {
@@ -300,7 +301,7 @@ func (a *App) helpText() string {
 	case scrWorkbench:
 		return a.bench.helpText()
 	case scrRun:
-		return "Run: j/k 케이스 · Tab diff/stderr/컴파일 · d 결과 기록 · esc 취소/뒤로"
+		return a.runM.helpText()
 	case scrDone:
 		return a.doneM.helpText()
 	case scrNew:
