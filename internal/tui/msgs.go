@@ -18,10 +18,16 @@ type openDoneMsg struct {
 	Prob    problem.Problem
 	Default string // "ok" | "fail" — Run 결과 기본값
 }
+type openPlanMsg struct{}
 type openNewMsg struct{}
 type newCreatedMsg struct {
 	Prob problem.Problem
 	Err  error
+}
+type lcNumberMsg struct {
+	Slug   string
+	Number string
+	Err    error
 }
 type openRetryMsg struct{ Prob problem.Problem }
 type openLogMsg struct{}
