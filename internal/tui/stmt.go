@@ -49,22 +49,24 @@ func (sm *stmtModel) open(p problem.Problem, site, slug string) tea.Cmd {
 	sm.filled = 0
 	sm.vp = viewport.New(0, 0)
 	sm.vpOK = false
+	var cmd tea.Cmd
 	switch site {
 	case "lc":
 		sm.url = "https://leetcode.com/problems/" + slug + "/"
-		return sm.loadCmd(false)
+		cmd = sm.loadCmd(false)
 	case "hr":
 		sm.loading = false
 		sm.title = p.Name
 		sm.url = "https://www.hackerrank.com/challenges/" + slug + "/problem"
 		sm.text = "HackerRank 지문은 웹에서 보세요.\n\n" + sm.url + "\n\n(슬러그는 표시명 기준 추정 — 열리지 않으면 사이트에서 검색)"
 		sm.loaded = true
-		return nil
 	default: // task
 		sm.loading = false
 		sm.title, sm.text, sm.loaded = taskStatement(slug)
-		return nil
 	}
+	// 초기 WindowSizeMsg은 앱 시작(홈) 때 한 번만 오므로 진입 시점 크기로 뷰포트를 잡아야 스크롤이 동작한다
+	sm.resizeVP()
+	return cmd
 }
 
 func (sm *stmtModel) cachePath() string {
@@ -89,6 +91,9 @@ func (sm *stmtModel) loadCmd(refetch bool) tea.Cmd {
 }
 
 func (sm *stmtModel) update(msg tea.Msg) tea.Cmd {
+	if !sm.vpOK {
+		sm.resizeVP() // 진입 시 크기 확보에 실패했으면(터미널이 잠시 작았을 때) 재시도
+	}
 	switch m := msg.(type) {
 	case tea.WindowSizeMsg:
 		sm.resizeVP()
@@ -274,7 +279,7 @@ func (sm *stmtModel) view() string {
 
 func (sm *stmtModel) helpText() string {
 	keys := [][2]string{
-		[2]string{"j/k", "스크롤"}, [2]string{"g/G", "처음/끝"},
+		[2]string{"j/k", "스크롤"}, [2]string{"u/d", "반 페이지"}, [2]string{"g/G", "처음/끝"},
 	}
 	if sm.site == "lc" && len(sm.ex) > 0 {
 		keys = append(keys, [2]string{"a", "예제→케이스"})
