@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -80,8 +79,10 @@ func render(title, diff, url, body string) string {
 	return b.String()
 }
 
-// Fill은 예제를 .in/.out으로 채운다. 문제 디렉터리가 없으면 template으로 스캐폴딩한다.
-// 비어 있는 기존 케이스 우선, 없으면 다음 번호 생성. 채운 개수를 반환한다.
+// Fill은 예제를 숨김 스펙 파일(.exN.in/.out)로 저장한다.
+// HackerRank 방식 연습 규칙(모든 문제 stdin/stdout)에 따라 실행 케이스(1.in…)는
+// 사용자가 자기 포맷으로 직접 쓰고, LC 예제는 참고용 스펙으로만 남긴다.
+// 저장한 예제 개수를 반환한다.
 func Fill(ctx context.Context, root, slug string, p problem.Problem, template string, now time.Time) (int, error) {
 	if p.Site != "lc" {
 		return 0, fmt.Errorf("예제 자동 채움은 LeetCode만 지원")
@@ -101,29 +102,13 @@ func Fill(ctx context.Context, root, slug string, p problem.Problem, template st
 	}
 	ex := lcref.ParseExamples(html)
 	if len(ex) == 0 {
-		return 0, fmt.Errorf("지문에서 예제를 찾지 못함 — R 대신 rm %s 후 재시도", htmlPath(root, p.Site, slug))
+		return 0, fmt.Errorf("지문에서 예제를 찾지 못함 — rm %s 후 재시도", htmlPath(root, p.Site, slug))
 	}
-	n, filled := 1, 0
-	for _, e := range ex {
-		for {
-			in := filepath.Join(p.Dir, strconv.Itoa(n)+".in")
-			out := filepath.Join(p.Dir, strconv.Itoa(n)+".out")
-			inEmpty, outEmpty := fileEmpty(in), fileEmpty(out)
-			if inEmpty && outEmpty {
-				_ = os.WriteFile(in, []byte(e.In+"\n"), 0644)
-				_ = os.WriteFile(out, []byte(e.Out+"\n"), 0644)
-				filled++
-				n++
-				break
-			}
-			n++ // 이미 채워진 케이스 or 절반만 찬 케이스 — 다음 번호로
-			if !inEmpty && !outEmpty {
-				continue
-			}
-			break
-		}
+	for i, e := range ex {
+		_ = os.WriteFile(filepath.Join(p.Dir, fmt.Sprintf(".ex%d.in", i+1)), []byte(e.In+"\n"), 0644)
+		_ = os.WriteFile(filepath.Join(p.Dir, fmt.Sprintf(".ex%d.out", i+1)), []byte(e.Out+"\n"), 0644)
 	}
-	return filled, nil
+	return len(ex), nil
 }
 
 func ensureHTML(ctx context.Context, root, site, slug string) (string, error) {
@@ -146,11 +131,6 @@ func SplitName(full, fallback string) (id, name string) {
 		return full[:i], full[i+1:]
 	}
 	return "0000", fallback
-}
-
-func fileEmpty(p string) bool {
-	st, err := os.Stat(p)
-	return err != nil || st.Size() == 0
 }
 
 // TaskStatement는 plan.md 7절의 과제형 요구사항을 마크다운으로 반환한다.

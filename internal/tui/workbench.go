@@ -202,6 +202,12 @@ func (w *workbenchModel) update(msg tea.Msg) tea.Cmd {
 		case "A":
 			p := w.prob
 			return w.a.stmtFillCmd(p, slugOf(p), false)
+		case "i":
+			// HackerRank 식 커스텀 입력: 에디터로 입력 쓰면 그 파일만 fast 실행
+			if f, err := os.OpenFile(filepath.Join(w.prob.Dir, "custom.in"), os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+				f.Close()
+			}
+			return w.a.editorCmd(w.prob, "custom.in")
 		case "o":
 			if f := w.selected(); f != nil && f.Kind == 2 {
 				return w.a.editorCmd(w.prob, f.Name)
@@ -358,7 +364,7 @@ func (w *workbenchModel) helpText() string {
 	return keyBar(
 		[2]string{"j/k", "파일"}, [2]string{"e", "편집"}, [2]string{"v", "지문(nvim)"}, [2]string{"r", "실행"}, [2]string{"F", "fast빌드"},
 		[2]string{"d", "기록"}, [2]string{"t", "재도전"}, [2]string{"a", "케이스"}, [2]string{"A", "예제채움"},
-		[2]string{"o", ".out 편집"}, [2]string{"esc", "홈"},
+		[2]string{"i", "커스텀입력"}, [2]string{"o", ".out 편집"}, [2]string{"esc", "홈"},
 	)
 }
 

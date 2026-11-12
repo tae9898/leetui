@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ type runModel struct {
 	a    *App
 	prob problem.Problem
 	fast bool
+	only string // 커스텀 입력처럼 이 파일만 실행 (""=전체)
 
 	phase      int // 1 컴파일, 2 케이스 실행, 3 완료, 4 취소됨
 	compileOut string
@@ -38,9 +40,10 @@ func newRun(a *App) *runModel {
 	return &runModel{a: a}
 }
 
-func (rm *runModel) start(p problem.Problem, fast bool) {
+func (rm *runModel) start(p problem.Problem, fast bool, only string) {
 	rm.prob = p
 	rm.fast = fast
+	rm.only = only
 	rm.phase = 1
 	rm.compileOut = ""
 	rm.cases = nil
@@ -107,8 +110,17 @@ func (rm *runModel) update(msg tea.Msg) tea.Cmd {
 			return nil
 		}
 		rm.cases = m.Cases
-		rm.results = make([]runner.CaseResult, len(m.Cases))
-		if len(m.Cases) == 0 {
+		if rm.only != "" {
+			var filtered []runner.Case
+			for _, c := range m.Cases {
+				if filepath.Base(c.In) == rm.only {
+					filtered = append(filtered, c)
+				}
+			}
+			rm.cases = filtered
+		}
+		rm.results = make([]runner.CaseResult, len(rm.cases))
+		if len(rm.cases) == 0 {
 			rm.phase = 3
 			return nil
 		}
@@ -183,13 +195,17 @@ func (rm *runModel) resizeVP() {
 }
 
 func (rm *runModel) allPass() bool {
-	pass := 0
+	pass, judged := 0, 0
 	for _, r := range rm.results {
+		if r.Status == runner.NoExp {
+			continue // 기대출력 없는 케이스(custom.in 등)는 판정에서 제외
+		}
+		judged++
 		if r.Status == runner.Pass {
 			pass++
 		}
 	}
-	return pass == len(rm.cases) && len(rm.cases) > 0
+	return pass == judged && judged > 0
 }
 
 func (rm *runModel) passCount() int {
@@ -203,8 +219,8 @@ func (rm *runModel) passCount() int {
 }
 
 func (rm *runModel) finishSummary() {
-	if rm.prob.Dir == "" {
-		return
+	if rm.prob.Dir == "" || rm.only != "" {
+		return // 커스텀 입력 실행은 요약에 남기지 않음
 	}
 	bin := "sol"
 	if rm.fast {
@@ -243,7 +259,12 @@ func (rm *runModel) detailContent() string {
 			b.WriteByte('\n')
 		}
 		if r.Status == runner.NoExp {
-			return b.String() + stWarn.Render("기대출력(.out) 없음 — 판정 제외")
+			b.WriteString(stWarn.Render("기대출력(.out) 없음 — 판정 제외, 출력만 표시"))
+			b.WriteString("\n\n")
+			for _, l := range splitLines(string(r.Actual)) {
+				b.WriteString("  " + l + "\n")
+			}
+			return b.String()
 		}
 		if r.Status == runner.Fail && linediff.WhitespaceOnly(r.Expected, r.Actual) {
 			b.WriteString(stWarn.Render("공백만 다름 (줄 끝 공백/CR)"))
@@ -275,6 +296,9 @@ func (rm *runModel) statusLine() string {
 	name := "sanitizer 빌드·테스트"
 	if rm.fast {
 		name = "fast 빌드"
+	}
+	if rm.only != "" {
+		name = "커스텀 입력 · " + rm.only
 	}
 	var phase string
 	switch rm.phase {

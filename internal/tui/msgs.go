@@ -12,7 +12,8 @@ type openProblemsMsg struct{}
 type openWorkbenchMsg struct{ Prob problem.Problem }
 type openRunMsg struct {
 	Prob problem.Problem
-	Fast bool // F 키: fast 빌드 후 시간 측정만
+	Fast bool   // F 키: fast 빌드 후 시간 측정만
+	Only string // 커스텀 입력 등 이 파일만 실행 (빈 값=전체)
 }
 type openDoneMsg struct {
 	Prob    problem.Problem
@@ -49,6 +50,7 @@ type openLogMsg struct{}
 type openStatsMsg struct{}
 type editorDoneMsg struct {
 	Prob problem.Problem
+	File string // 편집한 파일 (custom.in 후처리용)
 	Err  error
 }
 

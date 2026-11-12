@@ -4,6 +4,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
@@ -104,7 +105,7 @@ func (a *App) editorCmd(prob problem.Problem, file string) tea.Cmd {
 	cmd := exec.Command(a.cfg.Editor, file)
 	cmd.Dir = prob.Dir
 	return tea.ExecProcess(cmd, func(err error) tea.Msg {
-		return editorDoneMsg{Prob: prob, Err: err}
+		return editorDoneMsg{Prob: prob, File: filepath.Base(file), Err: err}
 	})
 }
 
@@ -204,6 +205,20 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.problems = m.Problems
 		}
 	case editorDoneMsg:
+		if m.Err != nil {
+			a.setNotice(false, "편집기 실패: "+m.Err.Error())
+			return a, a.bench.reload(m.Prob)
+		}
+		if m.File == "custom.in" {
+			// 커스텀 입력(HackerRank Run Custom Input 대응) — 그 파일만 fast 실행
+			if _, err := os.Stat(filepath.Join(m.Prob.Dir, "custom.in")); err != nil {
+				a.setNotice(false, "custom.in이 저장되지 않음")
+				return a, a.bench.reload(m.Prob)
+			}
+			return a, tea.Batch(func() tea.Msg {
+				return openRunMsg{Prob: m.Prob, Fast: true, Only: "custom.in"}
+			}, a.bench.reload(m.Prob))
+		}
 		return a, tea.Batch(loadLogCmd(a.cfg.Root), a.bench.reload(m.Prob))
 
 	case openHomeMsg:
@@ -214,7 +229,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.bench.setProblem(m.Prob)
 		return a, tea.Batch(a.open(scrWorkbench), a.bench.reload(m.Prob))
 	case openRunMsg:
-		a.runM.start(m.Prob, m.Fast)
+		a.runM.start(m.Prob, m.Fast, m.Only)
 		return a, tea.Batch(a.open(scrRun), a.runM.compileCmd())
 	case openDoneMsg:
 		a.doneM.start(m.Prob, m.Default)
@@ -246,7 +261,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.setNotice(true, "채울 예제 없음")
 			return a, nil
 		}
-		a.setNotice(true, fmt.Sprintf("예제 %d개를 케이스로 채움", m.N))
+		a.setNotice(true, fmt.Sprintf("예제 %d개 스펙 저장 (.exN.in) — 실행 케이스는 자기 포맷으로", m.N))
 		if m.Open {
 			a.bench.setProblem(m.Prob)
 			return a, tea.Batch(a.open(scrWorkbench), a.bench.reload(m.Prob))
