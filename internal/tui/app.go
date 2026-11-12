@@ -2,6 +2,8 @@
 package tui
 
 import (
+	"context"
+	"fmt"
 	"os/exec"
 	"path/filepath"
 	"time"
@@ -11,6 +13,7 @@ import (
 	"leetui/internal/ps/config"
 	"leetui/internal/ps/problem"
 	"leetui/internal/ps/pslog"
+	"leetui/internal/ps/stmt"
 )
 
 type screen int
@@ -26,7 +29,6 @@ const (
 	scrLog
 	scrStats
 	scrPlan
-	scrStmt
 )
 
 type App struct {
@@ -51,9 +53,11 @@ type App struct {
 	logM   *logModel
 	statsM *statsModel
 	pickM  *pickerModel
-	stmtM  *stmtModel
 
 	showHelp bool
+	notice   string // 하단 키 바 대신 잠깐 뜨는 알림 (아무 키나 누르면 사라짐)
+	noticeOK bool   // 참이면 ✓ 스타일, 거짓이면 ⚠ 스타일
+	busy     bool   // 지문/예제 비동기 작업 중 — 중복 발사 방지
 }
 
 func Run(cfg config.Config) error {
@@ -75,7 +79,6 @@ func newApp(cfg config.Config) *App {
 	a.logM = newLog(a)
 	a.statsM = newStats(a)
 	a.pickM = newPicker(a)
-	a.stmtM = newStmt(a)
 	return a
 }
 
@@ -105,6 +108,56 @@ func (a *App) editorCmd(prob problem.Problem, file string) tea.Cmd {
 	})
 }
 
+// execViewer는 지문 파일을 편집기(nvim)로 연다. TUI가 잠시 내려가고 종료 시 복귀한다.
+func (a *App) execViewer(path string) tea.Cmd {
+	cmd := exec.Command(a.cfg.Editor, path)
+	cmd.Dir = filepath.Dir(path)
+	return tea.ExecProcess(cmd, func(err error) tea.Msg {
+		return viewerDoneMsg{Err: err}
+	})
+}
+
+func (a *App) setNotice(ok bool, s string) {
+	a.notice, a.noticeOK = s, ok
+}
+
+// stmtOpenCmd는 지문을 캐시/fetch해 편집기로 연다.
+func (a *App) stmtOpenCmd(m openStmtMsg) tea.Cmd {
+	if a.busy {
+		return nil
+	}
+	a.busy = true
+	a.setNotice(false, "지문 가져오는 중… "+m.Site+"/"+m.Slug)
+	root, site, slug := a.cfg.Root, m.Site, m.Slug
+	return func() tea.Msg {
+		path, err := stmt.Ensure(context.Background(), root, site, slug)
+		return stmtReadyMsg{Path: path, Err: err}
+	}
+}
+
+// stmtFillCmd는 예제를 .in/.out으로 채운다. open이면 채운 뒤 작업 화면으로 간다.
+func (a *App) stmtFillCmd(p problem.Problem, slug string, open bool) tea.Cmd {
+	if a.busy {
+		return nil
+	}
+	a.busy = true
+	a.setNotice(false, "예제 가져오는 중… "+p.Site+"/"+slug)
+	root, template := a.cfg.Root, a.cfg.Template
+	return func() tea.Msg {
+		n, err := stmt.Fill(context.Background(), root, slug, p, template, time.Now())
+		return stmtFilledMsg{N: n, Prob: p, Open: open, Err: err}
+	}
+}
+
+// slugOf는 문제 이름 "0001-two-sum"에서 슬러그 "two-sum"을 뽑는다.
+func slugOf(p problem.Problem) string {
+	n := p.Name
+	if len(n) > 5 && n[4] == '-' && n[:4] >= "0000" && n[:4] <= "9999" {
+		return n[5:]
+	}
+	return n
+}
+
 func (a *App) open(s screen) tea.Cmd {
 	a.prev = a.cur
 	a.cur = s
@@ -130,6 +183,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// 크기 정보는 화면(뷰포트 등)에도 전달되어야 하므로 fall-through
 
 	case tea.KeyMsg:
+		a.notice = "" // 알림은 아무 키나 누르면 사라진다
 		switch m.String() {
 		case "ctrl+c":
 			return a, tea.Quit
@@ -168,8 +222,36 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case openPlanMsg:
 		return a, a.open(scrPlan)
 	case openStmtMsg:
-		cmd := a.stmtM.open(m.Prob, m.Site, m.Slug)
-		return a, tea.Batch(a.open(scrStmt), cmd)
+		return a, a.stmtOpenCmd(m)
+	case stmtReadyMsg:
+		a.busy = false
+		if m.Err != nil {
+			a.setNotice(false, "지문 실패: "+m.Err.Error())
+			return a, nil
+		}
+		a.notice = ""
+		return a, a.execViewer(m.Path)
+	case viewerDoneMsg:
+		if m.Err != nil {
+			a.setNotice(false, "지문 뷰어 실패: "+m.Err.Error())
+		}
+		return a, nil
+	case stmtFilledMsg:
+		a.busy = false
+		if m.Err != nil {
+			a.setNotice(false, "예제 채움 실패: "+m.Err.Error())
+			return a, nil
+		}
+		if m.N == 0 {
+			a.setNotice(true, "채울 예제 없음")
+			return a, nil
+		}
+		a.setNotice(true, fmt.Sprintf("예제 %d개를 케이스로 채움", m.N))
+		if m.Open {
+			a.bench.setProblem(m.Prob)
+			return a, tea.Batch(a.open(scrWorkbench), a.bench.reload(m.Prob))
+		}
+		return a, a.bench.reload(m.Prob)
 	case openNewMsg:
 		a.newM.reset()
 		return a, a.open(scrNew)
@@ -211,8 +293,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = a.statsM.update(msg)
 	case scrPlan:
 		cmd = a.pickM.update(msg)
-	case scrStmt:
-		cmd = a.stmtM.update(msg)
 	}
 	return a, cmd
 }
@@ -243,8 +323,6 @@ func (a *App) View() string {
 		body = a.statsM.view()
 	case scrPlan:
 		body = a.pickM.view()
-	case scrStmt:
-		body = a.stmtM.view()
 	}
 	if a.showHelp {
 		body = helpCard(a.helpText(), a.width, a.height-2)
@@ -256,7 +334,6 @@ var screenNames = map[screen]string{
 	scrHome: "홈", scrProblems: "문제", scrWorkbench: "작업", scrRun: "실행",
 	scrDone: "기록", scrNew: "새 문제", scrRetry: "재도전", scrLog: "로그", scrStats: "통계",
 	scrPlan: "플랜",
-	scrStmt: "지문",
 }
 
 func (a *App) frame(body string) string {
@@ -264,7 +341,15 @@ func (a *App) frame(body string) string {
 	right := stDim.Render(a.cfg.Root + " · " + time.Now().Format("2006-01-02 15:04"))
 	head := header(left, right, a.width)
 	body = fitLines(body, a.height-2)
-	return head + "\n" + body + "\n" + a.helpText()
+	bottom := a.helpText()
+	if a.notice != "" {
+		if a.noticeOK {
+			bottom = stOK.Render(" ✓ " + truncateStr(a.notice, a.width-4))
+		} else {
+			bottom = stFail.Render(" ⚠ " + truncateStr(a.notice, a.width-4))
+		}
+	}
+	return head + "\n" + body + "\n" + bottom
 }
 
 func (a *App) dueList() []pslog.DueItem {
@@ -335,8 +420,7 @@ func (a *App) helpText() string {
 		return a.statsM.helpText()
 	case scrPlan:
 		return a.pickM.helpText()
-	case scrStmt:
-		return a.stmtM.helpText()
 	}
 	return ""
 }
+

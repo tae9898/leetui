@@ -30,18 +30,20 @@ type lcNumberMsg struct {
 	Err    error
 }
 type openStmtMsg struct {
-	Prob problem.Problem
 	Site string
 	Slug string
 }
-type stmtLoadedMsg struct {
-	Slug       string
-	Title      string
-	Difficulty string
-	BodyHTML   string
-	Cached     bool
-	Err        error
+type stmtReadyMsg struct {
+	Path string
+	Err  error
 }
+type stmtFilledMsg struct {
+	N    int
+	Prob problem.Problem
+	Open bool // 피커에서 눌렀으면 채운 뒤 작업 화면으로
+	Err  error
+}
+type viewerDoneMsg struct{ Err error }
 type openRetryMsg struct{ Prob problem.Problem }
 type openLogMsg struct{}
 type openStatsMsg struct{}

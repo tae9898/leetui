@@ -184,7 +184,7 @@ func (w *workbenchModel) update(msg tea.Msg) tea.Cmd {
 		case "e":
 			return w.a.editorCmd(w.prob, "main.cpp")
 		case "v":
-			return openStmtCmd(w.a, w.prob)
+			return openStmtCmd(w.prob)
 		case "r":
 			p := w.prob
 			return func() tea.Msg { return openRunMsg{Prob: p} }
@@ -199,6 +199,9 @@ func (w *workbenchModel) update(msg tea.Msg) tea.Cmd {
 			return func() tea.Msg { return openRetryMsg{Prob: p} }
 		case "a":
 			return w.addCase()
+		case "A":
+			p := w.prob
+			return w.a.stmtFillCmd(p, slugOf(p), false)
 		case "o":
 			if f := w.selected(); f != nil && f.Kind == 2 {
 				return w.a.editorCmd(w.prob, f.Name)
@@ -353,8 +356,8 @@ func (w *workbenchModel) historyText(innerW int) string {
 
 func (w *workbenchModel) helpText() string {
 	return keyBar(
-		[2]string{"j/k", "파일"}, [2]string{"e", "편집"}, [2]string{"v", "지문"}, [2]string{"r", "실행"}, [2]string{"F", "fast빌드"},
-		[2]string{"d", "기록"}, [2]string{"t", "재도전"}, [2]string{"a", "케이스"},
+		[2]string{"j/k", "파일"}, [2]string{"e", "편집"}, [2]string{"v", "지문(nvim)"}, [2]string{"r", "실행"}, [2]string{"F", "fast빌드"},
+		[2]string{"d", "기록"}, [2]string{"t", "재도전"}, [2]string{"a", "케이스"}, [2]string{"A", "예제채움"},
 		[2]string{"o", ".out 편집"}, [2]string{"esc", "홈"},
 	)
 }
@@ -364,12 +367,7 @@ func (w *workbenchModel) setSummary(binName string, all, pass, elapsedMin int) {
 	w.summary = fmt.Sprintf("%s: %d/%d PASS · 경과 %d분", binName, pass, all, elapsedMin)
 }
 
-// openStmtCmd는 문제 이름에서 슬러그를 뽑아 지문 뷰어를 연다.
-func openStmtCmd(a *App, p problem.Problem) tea.Cmd {
-	site := p.Site
-	slug := p.Name
-	if i := strings.IndexByte(slug, '-'); i == 4 && slug[:4] >= "0000" && slug[:4] <= "9999" {
-		slug = slug[5:]
-	}
-	return func() tea.Msg { return openStmtMsg{Prob: p, Site: site, Slug: slug} }
+// openStmtCmd는 문제 이름에서 슬러그를 뽑아 지문(nvim)을 띄운다.
+func openStmtCmd(p problem.Problem) tea.Cmd {
+	return func() tea.Msg { return openStmtMsg{Site: p.Site, Slug: slugOf(p)} }
 }
