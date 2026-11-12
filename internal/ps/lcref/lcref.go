@@ -254,12 +254,90 @@ func HTMLToText(html string) string {
 		return "\n"
 	})
 	s = reAnyTag.ReplaceAllString(s, "")
-	s = strings.NewReplacer(
-		"&nbsp;", " ", "&lt;", "<", "&gt;", ">", "&quot;", `"`,
-		"&#39;", "'", "&apos;", "'", "&amp;", "&",
-	).Replace(s)
+	s = decodeEntities(s)
 	for strings.Contains(s, "\n\n\n") {
 		s = strings.ReplaceAll(s, "\n\n\n", "\n\n")
 	}
 	return strings.TrimSpace(s)
+}
+
+func decodeEntities(s string) string {
+	return strings.NewReplacer(
+		"&nbsp;", " ", "&lt;", "<", "&gt;", ">", "&quot;", `"`,
+		"&#39;", "'", "&apos;", "'", "&amp;", "&",
+	).Replace(s)
+}
+
+var (
+	rePre     = regexp.MustCompile(`(?is)<pre[^>]*>(.*?)</pre>`)
+	reLink    = regexp.MustCompile(`(?is)<a\s[^>]*href="([^"]*)"[^>]*>(.*?)</a>`)
+	reImg     = regexp.MustCompile(`(?is)<img\s[^>]*src="([^"]*)"[^>]*>`)
+	reStrong  = regexp.MustCompile(`(?is)</?(strong|b)\b[^>]*>`)
+	reEm      = regexp.MustCompile(`(?is)</?(em|i)\b[^>]*>`)
+	reCode    = regexp.MustCompile(`(?is)</?code\b[^>]*>`)
+	reSub     = regexp.MustCompile(`(?is)</?sub\b[^>]*>`)
+	reSupOpen = regexp.MustCompile(`(?is)<sup\b[^>]*>`)
+	reSupClos = regexp.MustCompile(`(?is)</sup>`)
+	reHeading = regexp.MustCompile(`(?is)<h([1-6])\b[^>]*>`)
+	reUlOl    = regexp.MustCompile(`(?is)</?(ul|ol)\b[^>]*>`)
+	reLiOpen  = regexp.MustCompile(`(?is)<li\b[^>]*>`)
+	reLiClos  = regexp.MustCompile(`(?is)</li>`)
+	rePDiv    = regexp.MustCompile(`(?is)</?(p|div|blockquote|table|tr)\b[^>]*>`)
+)
+
+// HTMLToMarkdown은 LC 지문 HTML을 마크다운으로 바꾼다.
+// <pre>는 펜스 코드 블록, strong/em/code는 **/*/`, <li>는 - 목록, <sup>는 ^.
+func HTMLToMarkdown(html string) string {
+	// <pre>는 코드 블록으로 통째로 보존 — 인라인 변환이 내부를 건드리지 않게 먼저 뺀다
+	var pres []string
+	s := rePre.ReplaceAllStringFunc(html, func(m string) string {
+		code := reAnyTag.ReplaceAllString(rePre.FindStringSubmatch(m)[1], "")
+		code = strings.TrimSpace(decodeEntities(code))
+		pres = append(pres, "```\n"+code+"\n```")
+		return "\x00" + strconv.Itoa(len(pres)-1) + "\x00"
+	})
+
+	s = reLink.ReplaceAllString(s, "[$2]($1)")
+	s = reImg.ReplaceAllString(s, "![img]($1)")
+	s = reStrong.ReplaceAllString(s, "**")
+	s = reEm.ReplaceAllString(s, "*")
+	s = reCode.ReplaceAllString(s, "`")
+	s = reSub.ReplaceAllString(s, "_")
+	s = reSupOpen.ReplaceAllString(s, "^")
+	s = reSupClos.ReplaceAllString(s, "")
+
+	s = reBr.ReplaceAllString(s, "\n")
+	s = reHeading.ReplaceAllStringFunc(s, func(m string) string {
+		n := m[2] - '0'
+		return "\n" + strings.Repeat("#", int(n)) + " "
+	})
+	s = rePDiv.ReplaceAllString(s, "\n\n")
+	s = reUlOl.ReplaceAllString(s, "\n")
+	s = reLiOpen.ReplaceAllString(s, "\n- ")
+	s = reLiClos.ReplaceAllString(s, "")
+	s = reAnyTag.ReplaceAllString(s, "")
+	s = decodeEntities(s)
+	s = strings.ReplaceAll(s, "\u00a0", " ") // non-breaking space
+	s = strings.ReplaceAll(s, "\u200b", "")  // zero-width space (LC가 종종 심음)
+	s = strings.ReplaceAll(s, "\ufeff", "")
+
+	// 줄별 정리 + 빈 줄 축소
+	lines := strings.Split(s, "\n")
+	for i := range lines {
+		lines[i] = strings.TrimSpace(lines[i])
+	}
+	s = strings.Join(lines, "\n")
+	for strings.Contains(s, "\n\n\n") {
+		s = strings.ReplaceAll(s, "\n\n\n", "\n\n")
+	}
+	for strings.Contains(s, "\n\n- ") { // 목록 항목 사이 빈 줄 제거
+		s = strings.ReplaceAll(s, "\n\n- ", "\n- ")
+	}
+	s = strings.TrimSpace(s)
+
+	// 코드 블록 복원
+	for i, p := range pres {
+		s = strings.Replace(s, "\x00"+strconv.Itoa(i)+"\x00", p, 1)
+	}
+	return s
 }

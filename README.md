@@ -23,8 +23,9 @@ leetui --root ~/ps  # 루트 명시
 
 ## 지문과 예제 — 터미널 안에서
 
-- 플랜 피커/작업 화면에서 `v`: 지문을 `$EDITOR`(nvim)로 띄운다. LeetCode는 지문(제목·난이도·본문)을
-  GraphQL로 가져와 `PS_ROOT/.stmt/<site>/<slug>.txt`로 캐시한다. 과제형 3종은 plan.md 7절 요구사항이 내장.
+- 플랜 피커/작업 화면에서 `v`: 지문을 **마크다운**으로 변환해 `$EDITOR`(nvim)로 띄운다. LeetCode는
+  지문(제목·난이도·본문)을 GraphQL로 가져와 `PS_ROOT/.stmt/<site>/<slug>.md`로 캐시한다 — 코드펜스·
+  강조·목록이 살아 있고 nvim이 `filetype=markdown`으로 하이라이팅한다. 과제형 3종은 plan.md 7절 요구사항이 내장.
   nvim이므로 검색·스크롤·yank·분할 자유롭게. 캐시를 지우고 다시 받으려면 그 파일을 삭제.
 - 피커 `a` / 작업 화면 `A`: 지문의 예제 Input/Output을 파싱해 `N.in`/`N.out`으로 자동 생성.
   아직 시작하지 않은 문제면 이 자리에서 디렉터리까지 만든다.
