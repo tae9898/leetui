@@ -54,6 +54,7 @@ func (rm *runModel) start(p problem.Problem, fast bool, only string) {
 	rm.ctx, rm.cancel = context.WithCancel(context.Background())
 	rm.vp = viewport.New(0, 0)
 	rm.vpOK = false
+	rm.resizeVP() // 초기 WindowSizeMsg은 홈에서 소진되므로 진입 시점 크기로 확보
 }
 
 func (rm *runModel) compileCmd() tea.Cmd {
@@ -93,6 +94,8 @@ func (rm *runModel) update(msg tea.Msg) tea.Cmd {
 		if m.Err != nil {
 			rm.compileOut = m.Stderr + "\n" + m.Err.Error()
 			rm.phase = 3
+			rm.tab = 2 // 컴파일 실패 — 로그 탭으로 바로 전환
+			rm.refreshDiff()
 			return nil
 		}
 		rm.compileOut = m.Stderr
@@ -235,14 +238,20 @@ func (rm *runModel) finishSummary() {
 }
 
 func (rm *runModel) refreshDiff() {
-	if !rm.vpOK || rm.cursor >= len(rm.results) {
+	if !rm.vpOK {
 		return
+	}
+	if rm.tab != 2 && rm.cursor >= len(rm.results) {
+		return // 컴파일 로그(tab 2)는 케이스와 무관하니 항상 갱신
 	}
 	rm.vp.SetContent(rm.detailContent())
 	rm.vp.GotoTop()
 }
 
 func (rm *runModel) detailContent() string {
+	if rm.tab == 2 {
+		return rm.compileOut
+	}
 	if rm.cursor >= len(rm.results) {
 		return ""
 	}
@@ -250,8 +259,6 @@ func (rm *runModel) detailContent() string {
 	switch rm.tab {
 	case 1:
 		return r.Stderr
-	case 2:
-		return rm.compileOut
 	default:
 		var b strings.Builder
 		if r.Truncated {
@@ -310,7 +317,7 @@ func (rm *runModel) statusLine() string {
 		phase = stFail.Render("취소됨")
 	default:
 		if rm.compileOut != "" && rm.results == nil {
-			phase = stFail.Render("컴파일 실패 (Tab: 로그)")
+			phase = stFail.Render("컴파일 실패")
 		} else {
 			phase = stOK.Render("완료")
 		}
@@ -345,7 +352,11 @@ func (rm *runModel) view() string {
 
 	caseTitle := fmt.Sprintf("케이스 · %d", len(rm.cases))
 	if len(rm.cases) == 0 && rm.phase == 3 {
-		caseTitle = "케이스 없음 — 작업 화면 a 키로 생성"
+		if rm.results == nil {
+			caseTitle = "컴파일 실패 — 오른쪽 로그 확인"
+		} else {
+			caseTitle = "케이스 없음 — 작업 화면 a 키로 생성"
+		}
 	}
 	left := paneBox(caseTitle, rm.caseRows(leftW-4), leftW, paneH, true)
 	detail := rm.detailContent()
