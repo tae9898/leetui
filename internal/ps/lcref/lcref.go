@@ -333,6 +333,7 @@ func HTMLToMarkdown(html string) string {
 	for strings.Contains(s, "\n\n- ") { // 목록 항목 사이 빈 줄 제거
 		s = strings.ReplaceAll(s, "\n\n- ", "\n- ")
 	}
+	s = tightenLabels(s)
 	s = strings.TrimSpace(s)
 
 	// 코드 블록 복원
@@ -340,4 +341,27 @@ func HTMLToMarkdown(html string) string {
 		s = strings.Replace(s, "\x00"+strconv.Itoa(i)+"\x00", p, 1)
 	}
 	return s
+}
+
+// tightenLabels는 예제 라벨 줄(**Input:** 등) 앞의 빈 줄을 없애 붙인다.
+// LC가 라벨마다 <p>를 따로 쓰는 바람에 예제 블록이 두 줄씩 벌어지는 걸 방지.
+func tightenLabels(s string) string {
+	ls := strings.Split(s, "\n")
+	var out []string
+	for _, l := range ls {
+		if len(out) > 0 && out[len(out)-1] == "" && isExampleLabel(l) {
+			out = out[:len(out)-1]
+		}
+		out = append(out, l)
+	}
+	return strings.Join(out, "\n")
+}
+
+func isExampleLabel(l string) bool {
+	for _, p := range []string{"**Input:**", "**Output:**", "**Explanation:**"} {
+		if strings.HasPrefix(l, p) {
+			return true
+		}
+	}
+	return false
 }

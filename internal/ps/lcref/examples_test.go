@@ -53,3 +53,20 @@ func TestHTMLToMarkdown(t *testing.T) {
 		t.Errorf("태그/엔티티 잔여: %q", got)
 	}
 }
+
+func TestMarkdownTightLabels(t *testing.T) {
+	// LC 신형 예제: 라벨마다 <p>가 따로 — 빈 줄 없이 붙어야 함
+	src := `<p><strong>Example 1:</strong></p>` +
+		`<p><strong>Input:</strong> s = "42"</p>` +
+		`<p><strong>Output:</strong> 42</p>` +
+		`<p><strong>Explanation:</strong> reads 42.</p>` +
+		`<p>Some closing prose paragraph.</p>`
+	got := HTMLToMarkdown(src)
+	want := "**Example 1:**\n**Input:** s = \"42\"\n**Output:** 42\n**Explanation:** reads 42."
+	if !strings.Contains(got, want) {
+		t.Errorf("라벨 줄이 붙지 않음:\n%s", got)
+	}
+	if !strings.Contains(got, "42.\n\nSome closing prose") {
+		t.Errorf("일반 문단 사이 빈 줄은 유지되어야 함:\n%s", got)
+	}
+}
