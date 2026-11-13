@@ -77,6 +77,9 @@ func (w *workbenchModel) reload(p problem.Problem) tea.Cmd {
 			}
 			info, _ := e.Info()
 			n := e.Name()
+			if strings.HasPrefix(n, ".") {
+				continue // .ex 스펙 등 숨김 파일 — 지문(v)에 이미 있으니 패널에서 제외
+			}
 			f := FileEntry{Name: n}
 			if info != nil {
 				f.Size = info.Size()
@@ -183,6 +186,11 @@ func (w *workbenchModel) update(msg tea.Msg) tea.Cmd {
 			}
 		case "e":
 			return w.a.editorCmd(w.prob, "main.cpp")
+		case "enter":
+			// 커서의 파일을 편집 — 파일 패널에서 ⏎만 누르면 열림
+			if f := w.selected(); f != nil {
+				return w.a.editorCmd(w.prob, f.Name)
+			}
 		case "v":
 			return openStmtCmd(w.prob)
 		case "r":
@@ -362,7 +370,7 @@ func (w *workbenchModel) historyText(innerW int) string {
 
 func (w *workbenchModel) helpText() string {
 	return keyBar(
-		[2]string{"j/k", "파일"}, [2]string{"e", "편집"}, [2]string{"v", "지문(nvim)"}, [2]string{"r", "실행"}, [2]string{"F", "fast빌드"},
+		[2]string{"j/k", "파일"}, [2]string{"⏎/e", "편집"}, [2]string{"v", "지문(nvim)"}, [2]string{"r", "실행"}, [2]string{"F", "fast빌드"},
 		[2]string{"d", "기록"}, [2]string{"t", "재도전"}, [2]string{"a", "케이스"}, [2]string{"A", "예제채움"},
 		[2]string{"i", "커스텀입력"}, [2]string{"o", ".out 편집"}, [2]string{"esc", "홈"},
 	)
