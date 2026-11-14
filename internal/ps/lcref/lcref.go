@@ -91,8 +91,9 @@ func pad4(n int) string {
 }
 
 // LookupNumber는 슬러그로 LeetCode 문제 번호를 조회한다 ("56" 형태 반환).
+// 표시 번호(questionFrontendId)를 쓴다 — 디렉터리 번호 관례가 표시 번호 기준이라서.
 func LookupNumber(ctx context.Context, slug string) (string, error) {
-	body := fmt.Sprintf(`{"query":"query($s:String!){question(titleSlug:$s){questionId}}","variables":{"s":%q}}`, slug)
+	body := fmt.Sprintf(`{"query":"query($s:String!){question(titleSlug:$s){questionFrontendId}}","variables":{"s":%q}}`, slug)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://leetcode.com/graphql", strings.NewReader(body))
 	if err != nil {
 		return "", err
@@ -114,17 +115,17 @@ func LookupNumber(ctx context.Context, slug string) (string, error) {
 	var out struct {
 		Data struct {
 			Question struct {
-				QuestionID string `json:"questionId"`
+				FrontendID string `json:"questionFrontendId"`
 			} `json:"question"`
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return "", err
 	}
-	if out.Data.Question.QuestionID == "" {
+	if out.Data.Question.FrontendID == "" {
 		return "", fmt.Errorf("leetcode에서 %s 조회 실패", slug)
 	}
-	return out.Data.Question.QuestionID, nil
+	return out.Data.Question.FrontendID, nil
 }
 
 // PadNumber은 조회된 번호를 psnew 규약(4자리)으로 맞춘다.
@@ -141,40 +142,91 @@ type Statement struct {
 	BodyHTML   string
 }
 
+// Question은 케이스 자동화에 필요한 문제 메타까지 담은 조회 결과.
+type Question struct {
+	Slug        string // titleSlug
+	QuestionID  string // 내부 ID — interpret_solution(question_id)용
+	FrontendID  string // 표시 번호 ("56") — 디렉터리 번호와 같은 관례
+	Title       string
+	Difficulty  string
+	Content     string   // 지문 HTML
+	Examples    []string // exampleTestcaseList — 케이스 하나가 파라미터 리터럴을 \n로 이은 문자열
+	MetaData    string   // 원문 metaData JSON (lcfmt.ParseMeta 입력)
+	CodeSnippet string   // cpp 스텁 (오라클 typed_code)
+}
+
 // FetchStatement는 지문(제목·난이도·본문 HTML)을 가져온다.
 func FetchStatement(ctx context.Context, slug string) (Statement, error) {
-	body := fmt.Sprintf(`{"query":"query($s:String!){question(titleSlug:$s){title difficulty content}}","variables":{"s":%q}}`, slug)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://leetcode.com/graphql", strings.NewReader(body))
+	q, err := FetchQuestion(ctx, slug)
 	if err != nil {
 		return Statement{}, err
 	}
+	return Statement{Title: q.Title, Difficulty: q.Difficulty, BodyHTML: q.Content}, nil
+}
+
+// FetchQuestion은 지문과 함께 예제 케이스·메타·cpp 스텁을 한 번에 가져온다.
+func FetchQuestion(ctx context.Context, slug string) (Question, error) {
+	return fetchQuestion(ctx, "https://leetcode.com/graphql", http.DefaultClient, slug)
+}
+
+func fetchQuestion(ctx context.Context, url string, hc *http.Client, slug string) (Question, error) {
+	query := `{"query":"query($s:String!){question(titleSlug:$s){questionId questionFrontendId title difficulty content exampleTestcaseList metaData codeSnippets{langSlug code}}}","variables":{"s":%q}}`
+	body := fmt.Sprintf(query, slug)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(body))
+	if err != nil {
+		return Question{}, err
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "Mozilla/5.0")
-	cctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	req = req.WithContext(cctx)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := hc.Do(req)
 	if err != nil {
-		return Statement{}, err
+		return Question{}, err
 	}
 	defer resp.Body.Close()
 	var out struct {
 		Data struct {
 			Question struct {
-				Title      string `json:"title"`
-				Difficulty string `json:"difficulty"`
-				Content    string `json:"content"`
+				QuestionID          string   `json:"questionId"`
+				FrontendID          string   `json:"questionFrontendId"`
+				Title               string   `json:"title"`
+				Difficulty          string   `json:"difficulty"`
+				Content             string   `json:"content"`
+				ExampleTestcaseList []string `json:"exampleTestcaseList"`
+				MetaData            string   `json:"metaData"`
+				CodeSnippets        []struct {
+					LangSlug string `json:"langSlug"`
+					Code     string `json:"code"`
+				} `json:"codeSnippets"`
 			} `json:"question"`
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return Statement{}, err
+		return Question{}, err
 	}
-	q := out.Data.Question
-	if q.Content == "" {
-		return Statement{}, fmt.Errorf("지문 없음 (유료 문제일 수 있음): %s", slug)
+	rq := out.Data.Question
+	if rq.Content == "" {
+		return Question{}, fmt.Errorf("지문 없음 (유료 문제일 수 있음): %s", slug)
 	}
-	return Statement{Title: q.Title, Difficulty: q.Difficulty, BodyHTML: q.Content}, nil
+	q := Question{
+		Slug:       slug,
+		QuestionID: rq.QuestionID,
+		FrontendID: rq.FrontendID,
+		Title:      rq.Title,
+		Difficulty: rq.Difficulty,
+		Content:    rq.Content,
+		Examples:   rq.ExampleTestcaseList,
+		MetaData:   rq.MetaData,
+	}
+	for _, s := range rq.CodeSnippets {
+		if s.LangSlug == "cpp" {
+			q.CodeSnippet = s.Code
+			break
+		}
+	}
+	return q, nil
 }
 
 // Example은 지문 예제의 입출력 텍스트.

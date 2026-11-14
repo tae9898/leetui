@@ -150,7 +150,8 @@ func (pm *pickerModel) update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-// start는 항목의 문제 디렉터리를 열거나 만들고 편집기를 띄운다.
+// start는 항목의 문제 디렉터리를 열거나 만든다. 새로 만들면 newCreatedMsg로
+// 흐른다 — 편집기와 LC 예제 자동 채움이 폼 경로와 같이 동작한다.
 func (pm *pickerModel) start(it plan.Item) tea.Cmd {
 	a := pm.a
 	key := it.ID + "-" + it.Name
@@ -167,7 +168,7 @@ func (pm *pickerModel) start(it plan.Item) tea.Cmd {
 		if _, _, err := problem.New(root, it.Site, it.ID, it.Name, template, time.Now()); err != nil {
 			return openNewMsg{}
 		}
-		return openWorkbenchMsg{Prob: p2}
+		return newCreatedMsg{Prob: p2}
 	}
 }
 

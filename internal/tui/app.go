@@ -136,7 +136,7 @@ func (a *App) stmtOpenCmd(m openStmtMsg) tea.Cmd {
 	}
 }
 
-// stmtFillCmd는 예제를 .in/.out으로 채운다. open이면 채운 뒤 작업 화면으로 간다.
+// stmtFillCmd는 예제를 실행 케이스(exN.in/.out)로 채운다. open이면 채운 뒤 작업 화면으로 간다.
 func (a *App) stmtFillCmd(p problem.Problem, slug string, open bool) tea.Cmd {
 	if a.busy {
 		return nil
@@ -145,8 +145,22 @@ func (a *App) stmtFillCmd(p problem.Problem, slug string, open bool) tea.Cmd {
 	a.setNotice(false, "예제 가져오는 중… "+p.Site+"/"+slug)
 	root, template := a.cfg.Root, a.cfg.Template
 	return func() tea.Msg {
-		n, err := stmt.Fill(context.Background(), root, slug, p, template, time.Now())
-		return stmtFilledMsg{N: n, Prob: p, Open: open, Err: err}
+		res, err := stmt.Fill(context.Background(), root, slug, p, template, time.Now())
+		return stmtFilledMsg{Res: res, Prob: p, Open: open, Err: err}
+	}
+}
+
+// oracleCmd는 .out 없는 .in 전부를 LC 정답 오라클로 채운다 (workbench O 키).
+func (a *App) oracleCmd(p problem.Problem) tea.Cmd {
+	if a.busy {
+		return nil
+	}
+	a.busy = true
+	a.setNotice(false, "오라클 실행 중… "+slugOf(p))
+	root := a.cfg.Root
+	return func() tea.Msg {
+		res, err := stmt.FillOracle(context.Background(), root, slugOf(p), p)
+		return oracleDoneMsg{Prob: p, Res: res, Err: err}
 	}
 }
 
@@ -257,15 +271,28 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.setNotice(false, "예제 채움 실패: "+m.Err.Error())
 			return a, nil
 		}
-		if m.N == 0 {
-			a.setNotice(true, "채울 예제 없음")
-			return a, nil
+		switch {
+		case m.Res.Examples == 0:
+			a.setNotice(false, "채울 예제 없음")
+		case m.Res.Fallback:
+			a.setNotice(true, fmt.Sprintf("예제 %d개 스펙 저장(.exN) — 미지원: %s", m.Res.Examples, m.Res.Reason))
+		case m.Res.Cases == 0:
+			a.setNotice(true, fmt.Sprintf("ex 케이스 이미 있음 — %d개 보존", m.Res.Skipped))
+		default:
+			a.setNotice(true, fmt.Sprintf("ex 케이스 %d개 생성 (기존 %d개 보존) — r 로 바로 판정", m.Res.Cases, m.Res.Skipped))
 		}
-		a.setNotice(true, fmt.Sprintf("예제 %d개 스펙 저장 (.exN.in) — 실행 케이스는 자기 포맷으로", m.N))
 		if m.Open {
 			a.bench.setProblem(m.Prob)
 			return a, tea.Batch(a.open(scrWorkbench), a.bench.reload(m.Prob))
 		}
+		return a, a.bench.reload(m.Prob)
+	case oracleDoneMsg:
+		a.busy = false
+		if m.Err != nil {
+			a.setNotice(false, "오라클 실패: "+m.Err.Error())
+			return a, a.bench.reload(m.Prob)
+		}
+		a.setNotice(len(m.Res.Failed) == 0, m.Res.Summary())
 		return a, a.bench.reload(m.Prob)
 	case openNewMsg:
 		a.newM.reset()
@@ -276,7 +303,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		a.bench.setProblem(m.Prob)
-		return a, tea.Batch(a.open(scrWorkbench), a.bench.reload(m.Prob), a.editorCmd(m.Prob, "main.cpp"))
+		cmds := []tea.Cmd{a.open(scrWorkbench), a.bench.reload(m.Prob), a.editorCmd(m.Prob, "main.cpp")}
+		if m.Prob.Site == "lc" {
+			// 만들자마자 예제가 실행 케이스가 되게 — 편집기에서 나오면 r 로 바로 판정 (M3)
+			cmds = append(cmds, a.stmtFillCmd(m.Prob, slugOf(m.Prob), false))
+		}
+		return a, tea.Batch(cmds...)
 	case openRetryMsg:
 		a.retryM.start(m.Prob)
 		return a, a.open(scrRetry)
@@ -438,4 +470,3 @@ func (a *App) helpText() string {
 	}
 	return ""
 }
-

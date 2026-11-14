@@ -4,6 +4,7 @@ import (
 	"leetui/internal/ps/problem"
 	"leetui/internal/ps/pslog"
 	"leetui/internal/ps/runner"
+	"leetui/internal/ps/stmt"
 )
 
 // 화면 전환
@@ -39,9 +40,14 @@ type stmtReadyMsg struct {
 	Err  error
 }
 type stmtFilledMsg struct {
-	N    int
+	Res  stmt.FillResult
 	Prob problem.Problem
 	Open bool // 피커에서 눌렀으면 채운 뒤 작업 화면으로
+	Err  error
+}
+type oracleDoneMsg struct {
+	Prob problem.Problem
+	Res  stmt.OracleResult
 	Err  error
 }
 type viewerDoneMsg struct{ Err error }
@@ -84,7 +90,8 @@ type runCancelledMsg struct{}
 
 // Workbench 갱신
 type filesLoadedMsg struct {
-	Files []FileEntry
-	Err   error
+	Files  []FileEntry
+	Oracle map[string]bool // 오라클이 채운 케이스명 (.oracle)
+	Err    error
 }
 type startResetMsg struct{ Err error }

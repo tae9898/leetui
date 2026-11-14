@@ -424,7 +424,7 @@ BFS: Shortest Reach in a Graph, DFS: Connected Cell in a Grid, Max Array Sum
 3. 코드보다 복잡도 먼저. 제약 조건을 읽고 목표 복잡도를 주석 첫 줄에 적은 뒤 구현을 시작합니다. 아래 표를 기준으로 삼습니다.
 4. 제출 전 엣지케이스 4종. 빈 입력, 원소 1개, 최대 크기, 전부 같은 값을 .in 파일로 만들어 돌립니다.
 5. 말하며 풀기. 접근, 자료구조를 고른 이유, 복잡도를 소리 내어 설명하면서 풉니다. 면접에 라이브 코딩이 없더라도 풀이 설명 질문에 그대로 쓰입니다.
-6. HackerRank 방식으로 풀기(2026-11-12 확정). 본시험 플랫폼이 HackerRank로 확정됐으므로 모든 문제를 stdin 파싱 / stdout 출력 방식으로 풉니다. LeetCode 문제도 입력 형식을 직접 정의하고 main에서 파싱합니다 — LC 예제 자동 채움(.exN.in)은 스펙 참고용이고, 실행 케이스(1.in, 2.in…)는 자기 포맷으로 직접 씁니다.
+6. HackerRank 방식으로 풀기(2026-11-12 확정, 2026-11-15 LC 개정). 본시험 플랫폼이 HackerRank로 확정됐으므로 모든 문제를 stdin 파싱 / stdout 출력 방식으로 풉니다. LeetCode 문제는 leetui 표준 포맷을 씁니다 — 문제를 만들면 예제가 ex1.in/ex1.out 실행 케이스로 자동 생성되고, 지문(nvim) 상단 "입력 형식 (leetui)" 섹션에 줄 규칙이 나옵니다. 직접 만드는 케이스(1.in, 2.in…)와 오라클(작업 화면 O — LC 공식 정답으로 .out 채움)도 같은 포맷을 따릅니다. 실제 HR 시험에서는 입력 형식이 지문으로 주어지므로, 이 방식이 파싱 연습을 그대로 살립니다.
 제약 조건에서 복잡도 역산
 n의 최대값
 허용되는 복잡도
@@ -595,19 +595,21 @@ timeout 2
 무한 루프와 명백한 시간 초과
 sanitizer는 실행을 몇 배 느리게 하므로, 시간 초과 여부는 g++ -std=c++17 -O2 main.cpp -o fast로 따로 빌드해 최대 크기 입력으로 확인합니다. macOS 기본 컴파일러에는 bits/stdc++.h와 _GLIBCXX_DEBUG가 없으니 Homebrew gcc를 쓰거나 Linux에서 연습합니다.
 LeetCode 문제를 로컬에서 푸는 형태
-입력 형식은 직접 정합니다. 이 과정이 HackerRank식 입력 파싱 연습이 됩니다.
-// 1.in:  4 9
-//        2 7 11 15
-// 1.out: 0 1
+leetui 표준 포맷을 씁니다. 문제를 만들면 예제가 ex1.in/ex1.out으로 자동 생성되고, 지문 상단 "입력 형식 (leetui)" 섹션에 규칙이 나옵니다. main에서 직접 파싱하는 것은 HR 방식 그대로입니다.
+// ex1.in:  4
+//          2 7 11 15
+//          9
+// ex1.out: 0 1
 class Solution {
 public:
     vector<int> twoSum(vector<int>& nums, int target) { /* ... */ }
 };
 
 int main() {
-    int n, target; cin >> n >> target;
+    int n; cin >> n;
     vector<int> nums(n);
     for (auto& x : nums) cin >> x;
+    int target; cin >> target;
     auto ans = Solution().twoSum(nums, target);
     cout << ans[0] << ' ' << ans[1] << '\n';
 }

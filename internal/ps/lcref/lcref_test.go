@@ -2,6 +2,12 @@ package lcref
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -54,5 +60,64 @@ func TestLookupNumber(t *testing.T) {
 	}
 	if PadNumber(n) != "0056" {
 		t.Fatalf("merge-intervals 번호 = %q, want 56", n)
+	}
+}
+
+// fixtureServer는 녹화해 둔 GraphQL 응답(testdata/<slug>.json)을 제공한다.
+func fixtureServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Variables struct {
+				Slug string `json:"s"`
+			} `json:"variables"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", 400)
+			return
+		}
+		data, err := os.ReadFile(filepath.Join("testdata", req.Variables.Slug+".json"))
+		if err != nil {
+			// 녹화되지 않은 슬러그는 question:null (유료/존재 않음 응답과 같은 형태)
+			w.Write([]byte(`{"data":{"question":null}}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(data)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestFetchQuestion(t *testing.T) {
+	srv := fixtureServer(t)
+	q, err := fetchQuestion(context.Background(), srv.URL, srv.Client(), "two-sum")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q.Title != "Two Sum" || q.Difficulty != "Easy" {
+		t.Fatalf("제목/난이도 불일치: %+v", q)
+	}
+	if q.QuestionID != "1" || q.FrontendID != "1" {
+		t.Fatalf("ID 불일치: %+v", q)
+	}
+	if len(q.Examples) != 3 || q.Examples[0] != "[2,7,11,15]\n9" {
+		t.Fatalf("예제 케이스 불일치: %q", q.Examples)
+	}
+	if !strings.Contains(q.MetaData, `"twoSum"`) {
+		t.Fatalf("metaData 없음: %q", q.MetaData)
+	}
+	if !strings.HasPrefix(q.CodeSnippet, "class Solution") {
+		t.Fatalf("cpp 스텁 없음: %q", q.CodeSnippet)
+	}
+	if !strings.Contains(q.Content, "Input:") {
+		t.Fatalf("지문 본문 없음")
+	}
+}
+
+func TestFetchQuestionNoContent(t *testing.T) {
+	srv := fixtureServer(t)
+	if _, err := fetchQuestion(context.Background(), srv.URL, srv.Client(), "not-recorded"); err == nil {
+		t.Fatal("question:null인데 에러가 없음")
 	}
 }

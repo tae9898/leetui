@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"leetui/internal/ps/lcfmt"
 	"leetui/internal/ps/lcref"
 	"leetui/internal/ps/problem"
 )
@@ -79,50 +80,137 @@ func render(title, diff, url, body string) string {
 	return b.String()
 }
 
-// Fill은 예제를 숨김 스펙 파일(.exN.in/.out)로 저장한다.
-// HackerRank 방식 연습 규칙(모든 문제 stdin/stdout)에 따라 실행 케이스(1.in…)는
-// 사용자가 자기 포맷으로 직접 쓰고, LC 예제는 참고용 스펙으로만 남긴다.
-// 저장한 예제 개수를 반환한다.
-func Fill(ctx context.Context, root, slug string, p problem.Problem, template string, now time.Time) (int, error) {
+// FillResult는 Fill의 결과 — 호출부가 notice를 꾸미는 데 쓴다.
+type FillResult struct {
+	Examples int    // 지문에서 찾은 예제 수
+	Cases    int    // 새로 만든 실행 케이스 파일 수 (exN.in/.out 합)
+	Skipped  int    // 이미 있어서 건드리지 않은 exN 파일 수
+	Fallback bool   // 참이면 표준 포맷 변환 불가 — 숨김 스펙(.exN)만 저장
+	Reason   string // 폴백 사유
+}
+
+// Fill은 LC 예제를 실행 케이스로 만든다 (lc-cases.md D1/D2).
+// 지원 문제: exampleTestcaseList 입력 + 지문 Output을 leetui 표준 포맷으로
+// 바꿔 exN.in/.out으로 쓰고, 지문 md에 입력 형식 섹션을 넣는다.
+// 미지원 문제(design, double 반환 등)는 숨김 스펙 .exN만 남긴다.
+// 이미 있는 exN.*는 덮어쓰지 않는다.
+func Fill(ctx context.Context, root, slug string, p problem.Problem, template string, now time.Time) (FillResult, error) {
 	if p.Site != "lc" {
-		return 0, fmt.Errorf("예제 자동 채움은 LeetCode만 지원")
+		return FillResult{}, fmt.Errorf("예제 자동 채움은 LeetCode만 지원")
 	}
 	if _, err := os.Stat(p.Dir); err != nil {
 		if template == "" {
-			return 0, fmt.Errorf("template.cpp 없음 — 먼저 ⏎ 로 문제를 시작하세요")
+			return FillResult{}, fmt.Errorf("template.cpp 없음 — 먼저 ⏎ 로 문제를 시작하세요")
 		}
 		id, name := SplitName(p.Name, slug)
 		if _, _, err := problem.New(root, p.Site, id, name, template, now); err != nil {
-			return 0, err
+			return FillResult{}, err
 		}
 	}
-	html, err := ensureHTML(ctx, root, p.Site, slug)
+	q, err := CachedQuestion(ctx, root, p.Site, slug)
 	if err != nil {
-		return 0, err
+		return FillResult{}, err
 	}
-	ex := lcref.ParseExamples(html)
-	if len(ex) == 0 {
-		return 0, fmt.Errorf("지문에서 예제를 찾지 못함 — rm %s 후 재시도", htmlPath(root, p.Site, slug))
-	}
+	return fillFromQuestion(root, p.Site, slug, p, q)
+}
+
+func fillFromQuestion(root, site, slug string, p problem.Problem, q lcref.Question) (FillResult, error) {
+	res := FillResult{}
+	ex := lcref.ParseExamples(q.Content)
+	res.Examples = len(ex)
+	// 원본 리터럴 참고용 — 항상 최신으로
 	for i, e := range ex {
 		_ = os.WriteFile(filepath.Join(p.Dir, fmt.Sprintf(".ex%d.in", i+1)), []byte(e.In+"\n"), 0644)
 		_ = os.WriteFile(filepath.Join(p.Dir, fmt.Sprintf(".ex%d.out", i+1)), []byte(e.Out+"\n"), 0644)
 	}
-	return len(ex), nil
+
+	meta, merr := lcfmt.ParseMeta(q.MetaData)
+	if merr == nil {
+		// design 문제(lru-cache 등)는 예제 파싱이 0개여도 우아하게 폴백
+		if ok, reason := lcfmt.Supported(meta, q.Content); !ok {
+			res.Fallback, res.Reason = true, reason
+			return res, nil
+		}
+	}
+	if len(ex) == 0 {
+		return res, fmt.Errorf("지문에서 예제를 찾지 못함 — rm %s %s 후 재시도",
+			questionPath(root, site, slug), htmlPath(root, site, slug))
+	}
+	if merr != nil {
+		res.Fallback, res.Reason = true, merr.Error()
+		return res, nil
+	}
+	if len(q.Examples) != len(ex) {
+		res.Fallback = true
+		res.Reason = fmt.Sprintf("예제 수 불일치 (지문 %d / 케이스 %d)", len(ex), len(q.Examples))
+		return res, nil
+	}
+	var stdins, stdouts []string
+	for i, tc := range q.Examples {
+		in, err := lcfmt.ToStdin(meta, tc)
+		if err != nil {
+			res.Fallback, res.Reason = true, fmt.Sprintf("예제 %d 입력 변환 실패: %v", i+1, err)
+			return res, nil
+		}
+		out, err := lcfmt.ToStdout(meta, ex[i].Out)
+		if err != nil {
+			res.Fallback, res.Reason = true, fmt.Sprintf("예제 %d 출력 변환 실패: %v", i+1, err)
+			return res, nil
+		}
+		stdins = append(stdins, in)
+		stdouts = append(stdouts, out)
+	}
+	for i := range stdins {
+		for _, f := range []struct{ name, data string }{
+			{fmt.Sprintf("ex%d.in", i+1), stdins[i]},
+			{fmt.Sprintf("ex%d.out", i+1), stdouts[i]},
+		} {
+			path := filepath.Join(p.Dir, f.name)
+			if _, err := os.Stat(path); err == nil {
+				res.Skipped++ // 사용자가 손본 파일 보존
+				continue
+			}
+			if err := os.WriteFile(path, []byte(f.data), 0644); err != nil {
+				return res, err
+			}
+			res.Cases++
+		}
+	}
+	if err := ensureSpec(root, site, slug, q, meta); err != nil {
+		return res, err
+	}
+	return res, nil
 }
 
-func ensureHTML(ctx context.Context, root, site, slug string) (string, error) {
-	hp := htmlPath(root, site, slug)
-	if data, err := os.ReadFile(hp); err == nil && len(data) > 0 {
-		return string(data), nil
-	}
-	st, err := lcref.FetchStatement(ctx, slug)
+// ensureSpec은 지문 md에 "입력 형식 (leetui)" 섹션을 넣는다 (HR Input Format 칸 대응).
+// md가 없으면 지문 전체를 만들고, 섹션이 이미 있으면 건드리지 않는다.
+func ensureSpec(root, site, slug string, q lcref.Question, meta lcfmt.Meta) error {
+	md := MdPath(root, site, slug)
+	data, err := os.ReadFile(md)
 	if err != nil {
-		return "", err
+		text := render(q.Title, q.Difficulty, "https://leetcode.com/problems/"+slug+"/", lcref.HTMLToMarkdown(q.Content))
+		data = []byte(text)
 	}
-	_ = os.MkdirAll(filepath.Dir(hp), 0755)
-	_ = os.WriteFile(hp, []byte(st.BodyHTML), 0644)
-	return st.BodyHTML, nil
+	text := string(data)
+	if strings.Contains(text, lcfmt.SpecMarker) {
+		return nil
+	}
+	lines := strings.Split(text, "\n")
+	i := 0
+	if i < len(lines) && strings.HasPrefix(lines[i], "# ") {
+		i++
+	}
+	for i < len(lines) && (strings.TrimSpace(lines[i]) == "" || strings.HasPrefix(lines[i], "https://")) {
+		i++
+	}
+	out := make([]string, 0, len(lines)+4)
+	out = append(out, lines[:i]...)
+	out = append(out, "", lcfmt.FormatSpec(meta))
+	out = append(out, lines[i:]...)
+	if err := os.MkdirAll(filepath.Dir(md), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(md, []byte(strings.Join(out, "\n")), 0644)
 }
 
 // SplitName은 "0001-two-sum" → ("0001", "two-sum").

@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"leetui/internal/ps/problem"
+	"leetui/internal/ps/stmt"
 )
 
 type FileEntry struct {
@@ -33,6 +34,7 @@ type workbenchModel struct {
 	summary string // 마지막 실행 결과 (세션 내 유지)
 	typ     string
 	header  [3]string
+	oracle  map[string]bool // 오라클이 채운 케이스명(.oracle) — .out 표식용
 }
 
 func newWorkbench(a *App) *workbenchModel { return &workbenchModel{a: a} }
@@ -107,7 +109,7 @@ func (w *workbenchModel) reload(p problem.Problem) tea.Cmd {
 			}
 			return natLess(files[i].Case, files[j].Case)
 		})
-		return filesLoadedMsg{Files: files}
+		return filesLoadedMsg{Files: files, Oracle: stmt.OracleMarked(dir)}
 	}
 }
 
@@ -161,6 +163,7 @@ func (w *workbenchModel) update(msg tea.Msg) tea.Cmd {
 			w.err = m.Err.Error()
 		} else {
 			w.files = m.Files
+			w.oracle = m.Oracle
 			w.err = ""
 		}
 		return w.tickCmd()
@@ -210,6 +213,8 @@ func (w *workbenchModel) update(msg tea.Msg) tea.Cmd {
 		case "A":
 			p := w.prob
 			return w.a.stmtFillCmd(p, slugOf(p), false)
+		case "O":
+			return w.a.oracleCmd(w.prob)
 		case "i":
 			// HackerRank 식 커스텀 입력: 에디터로 입력 쓰면 그 파일만 fast 실행
 			if f, err := os.OpenFile(filepath.Join(w.prob.Dir, "custom.in"), os.O_CREATE|os.O_WRONLY, 0644); err == nil {
@@ -328,7 +333,11 @@ func (w *workbenchModel) filesText(innerW int) string {
 	}
 	var b strings.Builder
 	for i, f := range w.files {
-		name := truncateStr(f.Name, nameW)
+		name := f.Name
+		if f.Kind == 2 && w.oracle[f.Case] {
+			name = "◆" + name // 오라클이 채운 .out
+		}
+		name = truncateStr(name, nameW)
 		if f.Kind == 3 {
 			name = stDim.Render(name)
 		}
@@ -372,6 +381,7 @@ func (w *workbenchModel) helpText() string {
 	return keyBar(
 		[2]string{"j/k", "파일"}, [2]string{"⏎/e", "편집"}, [2]string{"v", "지문(nvim)"}, [2]string{"r", "실행"}, [2]string{"F", "fast빌드"},
 		[2]string{"d", "기록"}, [2]string{"t", "재도전"}, [2]string{"a", "케이스"}, [2]string{"A", "예제채움"},
+		[2]string{"O", "오라클(.out)"},
 		[2]string{"i", "커스텀입력"}, [2]string{"o", ".out 편집"}, [2]string{"esc", "홈"},
 	)
 }
