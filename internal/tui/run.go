@@ -273,6 +273,13 @@ func (rm *runModel) detailContent() string {
 			}
 			return b.String()
 		}
+		if len(r.Actual) == 0 && len(r.Expected) > 0 {
+			b.WriteString(stWarn.Render("→ 프로그램이 아무것도 출력 안 함 (RE면 stderr 탭, 돌아가는데 없으면 TLE 의심)"))
+			b.WriteByte('\n')
+		} else if len(r.Actual) == 0 && len(r.Expected) == 0 {
+			b.WriteString(stWarn.Render("→ 기대출력(.out)이 비어 있음 — 이 케이스는 사실상 판정 안 됨"))
+			b.WriteByte('\n')
+		}
 		if r.Status == runner.Fail && linediff.WhitespaceOnly(r.Expected, r.Actual) {
 			b.WriteString(stWarn.Render("공백만 다름 (줄 끝 공백/CR)"))
 			b.WriteByte('\n')
