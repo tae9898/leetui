@@ -1,0 +1,22 @@
+{
+  "data": {
+    "question": {
+      "questionId": "200",
+      "questionFrontendId": "200",
+      "title": "Number of Islands",
+      "difficulty": "Medium",
+      "content": "<p>leetui 테스트용 최소 지문 — 실제 지문은 https://leetcode.com/problems/number-of-islands/ 에서 (저작권상 전문 미포함).</p>\n<p><strong>Example 1:</strong></p>\n<pre>\nInput: grid = [\n[\"1\",\"1\",\"1\",\"1\",\"0\"],\n[\"1\",\"1\",\"0\",\"1\",\"0\"],\n[\"1\",\"1\",\"0\",\"0\",\"0\"],\n[\"0\",\"0\",\"0\",\"0\",\"0\"]\n]\nOutput: 1\n</pre>\n<p><strong>Example 2:</strong></p>\n<pre>\nInput: grid = [\n[\"1\",\"1\",\"0\",\"0\",\"0\"],\n[\"1\",\"1\",\"0\",\"0\",\"0\"],\n[\"0\",\"0\",\"1\",\"0\",\"0\"],\n[\"0\",\"0\",\"0\",\"1\",\"1\"]\n]\nOutput: 3\n</pre>\n",
+      "exampleTestcaseList": [
+        "[[\"1\",\"1\",\"1\",\"1\",\"0\"],[\"1\",\"1\",\"0\",\"1\",\"0\"],[\"1\",\"1\",\"0\",\"0\",\"0\"],[\"0\",\"0\",\"0\",\"0\",\"0\"]]",
+        "[[\"1\",\"1\",\"0\",\"0\",\"0\"],[\"1\",\"1\",\"0\",\"0\",\"0\"],[\"0\",\"0\",\"1\",\"0\",\"0\"],[\"0\",\"0\",\"0\",\"1\",\"1\"]]"
+      ],
+      "metaData": "{\n  \"name\": \"numIslands\",\n  \"params\": [\n    {\n      \"name\": \"grid\",\n      \"type\": \"character[][]\"\n    }\n  ],\n  \"return\": {\n    \"type\": \"integer\"\n  },\n  \"manual\": true\n}",
+      "codeSnippets": [
+        {
+          "langSlug": "cpp",
+          "code": "class Solution {\npublic:\n    int numIslands(vector<vector<char>>& grid) {\n        \n    }\n};"
+        }
+      ]
+    }
+  }
+}

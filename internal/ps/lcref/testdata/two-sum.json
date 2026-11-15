@@ -1,0 +1,23 @@
+{
+  "data": {
+    "question": {
+      "questionId": "1",
+      "questionFrontendId": "1",
+      "title": "Two Sum",
+      "difficulty": "Easy",
+      "content": "<p>leetui 테스트용 최소 지문 — 실제 지문은 https://leetcode.com/problems/two-sum/ 에서 (저작권상 전문 미포함).</p>\n<p><strong>Example 1:</strong></p>\n<pre>\nInput: nums = [2,7,11,15], target = 9\nOutput: [0,1]\n</pre>\n<p><strong>Example 2:</strong></p>\n<pre>\nInput: nums = [3,2,4], target = 6\nOutput: [1,2]\n</pre>\n<p><strong>Example 3:</strong></p>\n<pre>\nInput: nums = [3,3], target = 6\nOutput: [0,1]\n</pre>\n",
+      "exampleTestcaseList": [
+        "[2,7,11,15]\n9",
+        "[3,2,4]\n6",
+        "[3,3]\n6"
+      ],
+      "metaData": "{\n  \"name\": \"twoSum\",\n  \"params\": [\n    {\n      \"name\": \"nums\",\n      \"type\": \"integer[]\"\n    },\n    {\n      \"name\": \"target\",\n      \"type\": \"integer\"\n    }\n  ],\n  \"return\": {\n    \"type\": \"integer[]\",\n    \"size\": 2\n  },\n  \"manual\": false\n}",
+      "codeSnippets": [
+        {
+          "langSlug": "cpp",
+          "code": "class Solution {\npublic:\n    vector<int> twoSum(vector<int>& nums, int target) {\n        \n    }\n};"
+        }
+      ]
+    }
+  }
+}

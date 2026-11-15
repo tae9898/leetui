@@ -1,0 +1,23 @@
+{
+  "data": {
+    "question": {
+      "questionId": "206",
+      "questionFrontendId": "206",
+      "title": "Reverse Linked List",
+      "difficulty": "Easy",
+      "content": "<p>leetui 테스트용 최소 지문 — 실제 지문은 https://leetcode.com/problems/reverse-linked-list/ 에서 (저작권상 전문 미포함).</p>\n<p><strong>Example 1:</strong></p>\n<pre>\nInput: head = [1,2,3,4,5]\nOutput: [5,4,3,2,1]\n</pre>\n<p><strong>Example 2:</strong></p>\n<pre>\nInput: head = [1,2]\nOutput: [2,1]\n</pre>\n<p><strong>Example 3:</strong></p>\n<pre>\nInput: head = []\nOutput: []\n</pre>\n",
+      "exampleTestcaseList": [
+        "[1,2,3,4,5]",
+        "[1,2]",
+        "[]"
+      ],
+      "metaData": "{\r\n  \"name\": \"reverseList\",\r\n  \"params\": [\r\n    {\r\n      \"name\": \"head\",\r\n      \"type\": \"ListNode\",\r\n      \"dealloc\": false\r\n    }\r\n  ],\r\n  \"return\": {\r\n    \"type\": \"ListNode\",\r\n    \"dealloc\": true\r\n  }\r\n}",
+      "codeSnippets": [
+        {
+          "langSlug": "cpp",
+          "code": "/**\n * Definition for singly-linked list.\n * struct ListNode {\n *     int val;\n *     ListNode *next;\n *     ListNode() : val(0), next(nullptr) {}\n *     ListNode(int x) : val(x), next(nullptr) {}\n *     ListNode(int x, ListNode *next) : val(x), next(next) {}\n * };\n */\nclass Solution {\npublic:\n    ListNode* reverseList(ListNode* head) {\n        \n    }\n};"
+        }
+      ]
+    }
+  }
+}
